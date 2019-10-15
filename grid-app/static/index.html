@@ -7,6 +7,8 @@
 		<link href="style.css" rel="stylesheet" />
 		<link href="xterm/xterm.js/xterm.css" rel="stylesheet" />
 
+		<script src="https://d3js.org/d3.v5.js" async defer></script>
+
 	</head>
 	<body>
 		<div class="context-menu">
@@ -75,6 +77,13 @@
 						<a target="blank" href="https://join.slack.com/t/grid-community/shared_invite/enQtNDA2OTkyMTg0OTI5LTE5OThjZDE3NWZjYTllMDIxMDQzYTRlNDhlOGRiMTY0MjQ5ZmEzOTQ2YTEwNDI3MzFiMmFiYzVmMTk1ZmIyMGM"><menu-item class='slack'>Slack community</menu-item></a>
 					</menu-list>
 				</menu-item>
+				<menu-item> 
+					Functions
+					<menu-list>
+						<menu-item class='apriori'>Apriori</menu-item>
+						<menu-item class='fpgrowth'>FP-Growth</menu-item>
+					</menu-list>
+				</menu-item>
 				<div class="save-status">Saved.</div>
 			</div-menu>
 			<div class="formula-bar">
@@ -97,7 +106,12 @@
 				</div>
 				<div class="progress-indicator"><div class="progress-indicator-inner"></div></div>
 			</div>
-			<div class='code-editor'>
+			<div id='code-editor-div' class='code-editor'>
+				<svg height="100" width="100">
+					<circle cx="50" cy="50" r="50" stroke="black" fill="red" />
+				</svg>
+			</div>
+			<!--div class='code-editor'>
 				<div id="editor">
 					<div class="file-editor">
 						<div class="file-name-holder"><div class="file-name"></div><div class="close" style="display:none"><img width="12px" src="image/cross.svg"/></div></div>
@@ -131,7 +145,7 @@
 						</div>
 					</div>
 				</div>
-			</div>
+			</div-->
 		</div>
 
 		<script src="js/libs/es6-promise.auto.min.js"></script>

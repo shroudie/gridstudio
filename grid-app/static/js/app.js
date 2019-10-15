@@ -772,7 +772,7 @@
 		this.init = function(){
 
 			// initialize editor
-			this.editor.init();
+			// this.editor.init();
 
 			// initialize codeGen
 			this.codeGen.init();
@@ -807,7 +807,7 @@
 			this.registerContextMenu();
 
 			// initialize terminal
-			this.termManager.init();
+			// this.termManager.init();
 
 			this.initTabs();
 
@@ -2049,7 +2049,6 @@
 			
 		}
 		
-		
 		this.uploadFile = function(file){
 			
 			var formData = new FormData();
@@ -2177,6 +2176,14 @@
 				if(!$(e.target).hasClass('file-input')){
 					_this.openFileUpload();
 				}
+			});
+
+			menu.find('menu-item.apriori').click(function(e) {
+				console.log("APRIRI");
+			});
+
+			menu.find('menu-item.fpgrowth').click(function(e) {
+				console.log("FP_GROWTH");
 			});
 			
 			// bind for later access
