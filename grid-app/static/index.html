@@ -6,9 +6,6 @@
 		<link rel="icon" href="favicon.png">
 		<link href="style.css" rel="stylesheet" />
 		<link href="xterm/xterm.js/xterm.css" rel="stylesheet" />
-
-		<script src="https://d3js.org/d3.v5.js" async defer></script>
-
 	</head>
 	<body>
 		<div class="context-menu">
@@ -39,6 +36,7 @@
 					<div class="context-menu-item codegen" data-method='pandas-frequency-table'>Frequency table</div>
 				</div>
 			</div>
+			<div class="context-menu-item filter">Filter</div>
 		</div>
 		<header>
 			<div class="workspaceName"><input type="hidden" name='id' value='' /><input type="text" name="workspaceName" value="" /></div>
@@ -78,6 +76,13 @@
 					</menu-list>
 				</menu-item>
 				<menu-item> 
+					Datasets
+					<menu-list>
+						<menu-item class='housing'>Housing</menu-item>
+						<menu-item class='melbourne'>Melbourne</menu-item>
+					</menu-list>
+				</menu-item>
+				<menu-item> 
 					Functions
 					<menu-list>
 						<menu-item class='apriori'>Apriori</menu-item>
@@ -106,11 +111,11 @@
 				</div>
 				<div class="progress-indicator"><div class="progress-indicator-inner"></div></div>
 			</div>
-			<div id='code-editor-div' class='code-editor'>
+			<!-- <div id='code-editor-div' class='code-editor'>
 				<svg height="100" width="100">
 					<circle cx="50" cy="50" r="50" stroke="black" fill="red" />
 				</svg>
-			</div>
+			</div> -->
 			<!--div class='code-editor'>
 				<div id="editor">
 					<div class="file-editor">

@@ -200,7 +200,7 @@
     
             };
         }
-
+        
         this.send = function(value){
             if(this.ws.readyState == this.ws.OPEN){
 
@@ -215,7 +215,7 @@
                         this.app.markUnsaved();
                     }
 
-                    this.ws.send(JSON.stringify(value))
+                    this.ws.send(JSON.stringify(value));
                 }
             }else{
                 console.warn("Tried to send" + value + " while not in open state");

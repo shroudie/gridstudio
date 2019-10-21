@@ -6,6 +6,22 @@
 		history.pushState(null, null, '');
 	});
 	
+	function http_req(method, url, cb, data=null) {
+		var xhr = new XMLHttpRequest();
+		xhr.open(method, url);
+		xhr.onload = function () {
+		  if (xhr.status == 200) {
+			  cb(xhr.response);
+		  } else {
+			  console.log(xhr.status, xhr.response);
+		  }
+		};
+		xhr.onerror = function () {
+		  console.log(xhr.status, xhr.response);
+		};
+		xhr.send(data);
+	}
+
 	function download(data, filename, type) {
 		var file = new Blob([data], {type: type});
 		if (window.navigator.msSaveOrOpenBlob) // IE10+
@@ -117,6 +133,8 @@
 		
 		this.fontStyle = "12px Arial";
 		this.fontHeight = determineFontHeight(this.fontStyle);
+
+		this.current_dataset;
 
 		this.get = function(position, sheet){
 
@@ -612,6 +630,9 @@
 					var method = $(this).attr('data-method');
 					var selection = _this.cellArrayToStringRange(_this.getSelectedCellsInOrder()); 
 					_this.codeGen.generate(method, selection, _this.activeSheet);
+				}else if($(this).hasClass('filter')) {
+					//TODO: FILTER
+					console.log("filter");
 				}
 
 				$('.context-menu').removeClass("shown");
@@ -2184,6 +2205,21 @@
 
 			menu.find('menu-item.fpgrowth').click(function(e) {
 				console.log("FP_GROWTH");
+			});
+
+			menu.find('menu-item.housing').click(function(e) {
+				http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
+					_this.current_dataset = 'housing';
+					_this.wsManager.send({arguments: ["CSV", resp]});
+				});
+			});
+
+			menu.find('menu-item.melbourne').click(function(e) {
+				console.log(_this);
+				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
+				// 	_this.current_dataset = 'melbourne';
+				// 	_this.wsManager.send({arguments: ["CSV", resp]});
+				// });
 			});
 			
 			// bind for later access
