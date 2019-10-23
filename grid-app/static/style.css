@@ -338,6 +338,7 @@ body div-sheet canvas {
   box-sizing: border-box;
   border-left: 1px solid #bbb;
   overflow: hidden;
+  padding: 20px;
 }
 .code-editor .computing-indicator {
   width: 26px;
@@ -530,4 +531,20 @@ input.input-field {
 
 .svg-panel {
   background-color: red;
+}
+
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+td, th {
+  border: 1px solid #757575;
+  text-align: left;
+  padding: 8px;
+}
+
+tr:nth-child(even) {
+  background-color: #dddddd;
 }

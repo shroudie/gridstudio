@@ -157,8 +157,10 @@
 			dst: null,
 		};
 
-		const ACTION_CONNECT = 'CONN';
+		const ACTION_CONNECT = 'CONN', ACTION_DRAG = 'DRAG';
 		this.action;
+
+		const D3_TEXT_OFFSET = 30;
 
 		const _zoom_callback = d3.zoom().scaleExtent([0.5, 20])
 		.on('zoom', () => {
@@ -179,9 +181,12 @@
 				_this.action = ACTION_CONNECT;
 				_this.d3_next_state.src = target;
 				_this.d3_next_state.arr = _add_arrow(target.getAttribute('cx'), target.getAttribute('cy'));
+			} else {
+				_this.action = ACTION_DRAG;
+				_this.d3_next_state.src = target;
 			}
 		})
-		.on('drag', () => {
+		.on('drag', (e) => {
 			if (_this.action === ACTION_CONNECT) {
 				const dst = _this.d3_next_state.dst;
 				var x, y;
@@ -193,6 +198,19 @@
 					y = d3.event.y;
 				}
 				_this.d3_next_state.arr.attr('x2', x).attr('y2', y);
+			} else if (_this.action === ACTION_DRAG) {
+				const x = d3.event.x, y = d3.event.y;
+				_this.d3_next_state.src.setAttribute('cx', x);
+				_this.d3_next_state.src.setAttribute('cy', y);
+
+				const n = _this.graph[e.id];
+				n.g.l.attr('x', x + D3_TEXT_OFFSET).attr('y', y);
+				n.g.a[0].forEach((arrow) => {
+					arrow.attr('x1', x).attr('y1', y);
+				})
+				n.g.a[1].forEach((arrow) => {
+					arrow.attr('x2', x).attr('y2', y);
+				})
 			}
 		})
 		.on('end', (e) => {
@@ -202,12 +220,18 @@
 					const src = d3.select(_this.d3_next_state.src).data()[0].id;
 					if (_simple_connect_check(src, dst)) {
 						_this.graph[dst].d[1] = _this.graph[src].d;
+
+						_this.graph[src].g.a[0].add(_this.d3_next_state.arr);
+						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr);
 					} else {
 						alert('Invalid Operation.');
 					}
+				} else {
+					_this.d3_next_state.arr.remove();
 				}
 			}
 			_this.action = null;
+			_this.d3_next_state.src = null;
 		})
 
 		const svg = d3.select('#svg-panel-div').append('svg').attr('width', '100%').attr('height', '100%').call(_zoom_callback);
@@ -223,7 +247,7 @@
 			for (let i=0; i<data.length; ++i) {
 				const curr = data[i];
 				if (curr.status && curr.source in _this.graph) {
-					_add_node_output(curr.message);
+					_add_node_output(curr);
 				} else {
 					console.log("#Execution Failed.");
 				}
@@ -247,6 +271,16 @@
 					break;
 			}
 			return data;
+		}
+
+		const _add_node_mousecallback = (n) => {
+			n
+			.on('mouseover', () => {
+				document.body.style.cursor = 'pointer';
+			}) 
+			.on('mouseout', () => {
+				document.body.style.cursor = 'default';
+			})
 		}
 
 		const _add_node_callback = (n) => {
@@ -275,13 +309,13 @@
 				.attr('fill', 'white');
 		}
 
-		function _add_arrow(x, y) {
+		function _add_arrow(x1, y1, x2=x1, y2=y1) {
 			return gsvg
 				.append('line')
-				.attr('x1', x)
-				.attr('y1', y)
-				.attr('x2', x)
-				.attr('y2', y)
+				.attr('x1', x1)
+				.attr('y1', y1)
+				.attr('x2', x2)
+				.attr('y2', y2)
 				.attr('stroke', 'black')
 				.attr('stroke-width', 1)
 				.attr('marker-end', 'url(#triangle)');
@@ -293,11 +327,15 @@
 			const node = gsvg.append('circle').attr('class', 'nodei').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
 			_add_node_callback(node);
 
-			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text(dataset);
+			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text(dataset);
 
 			_this.graph[_id] = {
 				t: 'i', //node type
 				d: _reduced_sheet(_this.data[_this.activeSheet]), //node data
+				g: {
+					l: text,	//text label
+					a: [new Set(), new Set()], //arrows
+				}
 			}
 		}
 	
@@ -307,21 +345,58 @@
 			const node = gsvg.append('circle').attr('class', 'nodef').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
 			_add_node_callback(node);
 			
-			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').attr('stroke', 'black').text(func);
+			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').attr('stroke', 'black').text(func);
 			_this.graph[_id] = {
 				t: 'f', //node type
 				d: [func, null], //node data
+				g: {
+					l: text,	//text label
+					a: [new Set(), new Set()], //[outgoing, incoming]
+				}
 			}
 		}
 		
 		function _add_node_output(output) {
+			const _id = Object.keys(_this.graph).length;
+
 			const cx = 50, cy = 250, r =20;
-			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white');
-			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT');
+			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT');
+
+			const src = gsvg.selectAll('circle').filter((d) => { return d.id==output.source });
+
+			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+
+			const arr = _add_arrow(src.attr('cx'), src.attr('cy'), cx, cy);
 
 			node.on('click', () => {
-				console.log(output);
-			})
+				_create_view(output.message);
+			});
+			_add_node_mousecallback(node);
+
+			_this.graph[_id] = {
+				t: 'o', //node type
+				d: output, //node data
+				g: {
+					l: text,	//text label
+					a: [new Set(), new Set([arr])], //arrows
+				}
+			}
+			_this.graph[output.source].g.a[0].add(arr);
+		}
+
+		function _create_view(view) {
+			let content = '<tr><th>Item</th><th>Frequency</th></tr>';
+			if (view.type == 'table') {
+				console.log(view.data);
+				for (const [item, freq] of Object.entries(view.data)) {
+					content += 
+						'<tr>' + 
+						'<td>' + item + '</td>' +
+						'<td>' + freq + '</td>' +
+						'</tr>';
+				}
+			}
+			$('#code-editor-div').html('<table>' + content + '</table>');
 		}
 	
 	
@@ -2504,14 +2579,19 @@
 				var queue = [];
 				for (const [id, node] of Object.entries(_this.graph)) {
 					if (node.t == 'f') {
-						const args = node.d;
-						for (let i=0; i<args.length; ++i) {
-							if (args[i] === null) continue;
+						var valid = true;
+						for (let i=0; i<node.d.length; ++i) {
+							if (!node.d[i]) {
+								valid = false;
+								break;
+							};
 						}
-						queue.push({
-							id: parseInt(id),
-							fc: node.d
-						});
+						if (valid) {
+							queue.push({
+								id: parseInt(id),
+								fc: node.d
+							});
+						}
 					}
 				}
 				console.log(queue);
