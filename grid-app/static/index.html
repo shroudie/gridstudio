@@ -6,6 +6,8 @@
 		<link rel="icon" href="favicon.png">
 		<link href="style.css" rel="stylesheet" />
 		<link href="xterm/xterm.js/xterm.css" rel="stylesheet" />
+		<script src='https://d3js.org/d3.v5.min.js'></script>
+		<script src='https://cdn.socket.io/socket.io-1.2.1.js'></script>
 	</head>
 	<body>
 		<div class="context-menu">
@@ -87,6 +89,7 @@
 					<menu-list>
 						<menu-item class='apriori'>Apriori</menu-item>
 						<menu-item class='fpgrowth'>FP-Growth</menu-item>
+						<menu-item class='run'>Run</menu-item>
 					</menu-list>
 				</menu-item>
 				<div class="save-status">Saved.</div>
@@ -111,11 +114,9 @@
 				</div>
 				<div class="progress-indicator"><div class="progress-indicator-inner"></div></div>
 			</div>
-			<!-- <div id='code-editor-div' class='code-editor'>
-				<svg height="100" width="100">
-					<circle cx="50" cy="50" r="50" stroke="black" fill="red" />
-				</svg>
-			</div> -->
+			<div id='code-editor-div' class='code-editor'>
+			</div>
+			<div id='svg-panel-div' class='code-editor' style="top:50%;"></div>
 			<!--div class='code-editor'>
 				<div id="editor">
 					<div class="file-editor">

@@ -1,11 +1,21 @@
 (function(){
+	String.prototype.format = function() {
+		var args = arguments;
+		return this.replace(/{(\d+)}/g, function(_, number) { 
+		return typeof args[number] != 'undefined'
+			? args[number]
+			: "0"
+		;
+		});
+	};
+
 	
 	// macOS swipe back prevention
 	history.pushState(null, null, '');
 	window.addEventListener('popstate', function(event) {
 		history.pushState(null, null, '');
 	});
-	
+
 	function http_req(method, url, cb, data=null) {
 		var xhr = new XMLHttpRequest();
 		xhr.open(method, url);
@@ -134,7 +144,246 @@
 		this.fontStyle = "12px Arial";
 		this.fontHeight = determineFontHeight(this.fontStyle);
 
-		this.current_dataset;
+
+		//customized data
+
+		this.dataset; //original data
+		this.filters = {};
+
+		this.graph = {};
+		this.d3_next_state = {
+			src: null,
+			arr: null,
+			dst: null,
+		};
+
+		const ACTION_CONNECT = 'CONN';
+		this.action;
+
+		const _zoom_callback = d3.zoom().scaleExtent([0.5, 20])
+		.on('zoom', () => {
+			document.body.style.cursor = 'pointer';
+			
+			gsvg.attr('transform', d3.event.transform);
+		})
+		.on('end', () => {
+            document.body.style.cursor = 'default';
+		});
+
+		const _drag_callback = d3.drag()
+		.on('start', (e) => {
+			d3.event.sourceEvent.stopPropagation();
+
+			const target = d3.event.sourceEvent.target;
+			if (d3.event.sourceEvent.shiftKey) {
+				_this.action = ACTION_CONNECT;
+				_this.d3_next_state.src = target;
+				_this.d3_next_state.arr = _add_arrow(target.getAttribute('cx'), target.getAttribute('cy'));
+			}
+		})
+		.on('drag', () => {
+			if (_this.action === ACTION_CONNECT) {
+				const dst = _this.d3_next_state.dst;
+				var x, y;
+				if (dst !== null) {
+					x = dst.getAttribute('cx');
+					y = dst.getAttribute('cy');
+				} else {
+					x = d3.event.x;
+					y = d3.event.y;
+				}
+				_this.d3_next_state.arr.attr('x2', x).attr('y2', y);
+			}
+		})
+		.on('end', (e) => {
+			if (_this.action === ACTION_CONNECT) {
+				if (_this.d3_next_state.dst !== null) {
+					const dst = d3.select(_this.d3_next_state.dst).data()[0].id;
+					const src = d3.select(_this.d3_next_state.src).data()[0].id;
+					if (_simple_connect_check(src, dst)) {
+						_this.graph[dst].d[1] = _this.graph[src].d;
+					} else {
+						alert('Invalid Operation.');
+					}
+				}
+			}
+			_this.action = null;
+		})
+
+		const svg = d3.select('#svg-panel-div').append('svg').attr('width', '100%').attr('height', '100%').call(_zoom_callback);
+		const gsvg = svg.append('g').attr('transform', 'translate(0, 0) scale(1)');
+		_add_d3_refs();
+
+		const socket = io('http://localhost:5000/task');
+		socket.on('log', (data) => {
+			console.log("#Log: ", data)
+		});
+	
+		socket.on('done', (data) => {
+			for (let i=0; i<data.length; ++i) {
+				const curr = data[i];
+				if (curr.status && curr.source in _this.graph) {
+					_add_node_output(curr.message);
+				} else {
+					console.log("#Execution Failed.");
+				}
+			}
+		});
+
+		function _simple_connect_check(src, dst) {
+			//connect src to dst
+			if (_this.graph[src].t == 'i' && _this.graph[dst].t == 'f') {
+				return true;
+			}
+			return false;
+		}
+	
+		function _reduced_sheet(input) {
+			var data = [];
+			for (let i=0; i<input.length; ++i) {
+				if (input[i][0] !== '')
+					data.push(input[i]);
+				else 
+					break;
+			}
+			return data;
+		}
+
+		const _add_node_callback = (n) => {
+			n
+			.on('mouseover', () => {
+				_this.d3_next_state.dst = d3.event.target;
+			}) 
+			.on('mouseout', () => {
+				_this.d3_next_state.dst = null;
+			})
+		}
+
+		function _add_d3_refs() {
+			gsvg.append('svg:defs')
+				.append('svg:marker')
+				.attr('id', 'triangle')
+				.attr('viewBox', '0 0 10 10')
+				.attr('refX', 1)
+				.attr('refY', 5)
+				.attr('markerWidth', 6)
+				.attr('markerHeight', 6)
+				.attr('orient', 'auto')
+				.append('path')
+				.attr('d', 'M 0 0 L 10 5 L 0 10 z')
+				.attr('stroke', 'black')
+				.attr('fill', 'white');
+		}
+
+		function _add_arrow(x, y) {
+			return gsvg
+				.append('line')
+				.attr('x1', x)
+				.attr('y1', y)
+				.attr('x2', x)
+				.attr('y2', y)
+				.attr('stroke', 'black')
+				.attr('stroke-width', 1)
+				.attr('marker-end', 'url(#triangle)');
+		}
+
+		function _add_node_dataset(dataset) {
+			const _id = Object.keys(_this.graph).length;
+			const cx = 50, cy = 50, r = 20;
+			const node = gsvg.append('circle').attr('class', 'nodei').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+			_add_node_callback(node);
+
+			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text(dataset);
+
+			_this.graph[_id] = {
+				t: 'i', //node type
+				d: _reduced_sheet(_this.data[_this.activeSheet]), //node data
+			}
+		}
+	
+		function _add_node_function(func) {
+			const _id = Object.keys(_this.graph).length;
+			const cx = 50, cy = 150, r =20;
+			const node = gsvg.append('circle').attr('class', 'nodef').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+			_add_node_callback(node);
+			
+			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').attr('stroke', 'black').text(func);
+			_this.graph[_id] = {
+				t: 'f', //node type
+				d: [func, null], //node data
+			}
+		}
+		
+		function _add_node_output(output) {
+			const cx = 50, cy = 250, r =20;
+			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white');
+			gsvg.append('text').attr('x', cx + 30).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT');
+
+			node.on('click', () => {
+				console.log(output);
+			})
+		}
+	
+	
+
+		this.confirm_filter = function() {
+			const dataset = _this.data[_this.activeSheet];
+			var include = new Set();
+			for (let i=0; i<dataset.length; ++i) {
+				if (dataset[i][0] != '""') 
+					include.add(i);
+				else
+					break;
+			}
+
+			for (let i=1; i<dataset.length; ++i) {
+				for (let k in _this.filters) {
+					if (!_this.filters[k].f(dataset[i][k])) {
+						include.delete(i);
+					}
+				}
+			}
+			var next = [];
+			include.forEach((i) => {
+				next.push(dataset[i]);
+			});
+
+			const cols = dataset[0];
+			for (let i=next.length; i<dataset.length; ++i) {
+				var row = [];
+				for (let j=0; j<cols.length; ++j) {
+					row.push("");
+				}
+				next.push(row);
+			}
+			let csv = next.map(e => e.join(',')).join('\n');
+			_this.wsManager.send({arguments: ["CSV", csv]});
+		}
+
+		const filter_number_tmplt = `
+			<div class="data-filter">
+				<form>
+					<h2>{0}</h1>
+					<label>Min</label>
+					<input type="number" value="{1}"><br>
+					<label>Max</label>
+					<input type="number" value="{2}"><br>
+					<input type="submit" value="Confirm">
+				</form>
+			</div>
+		`;
+		const filter_string_tmplt = `
+			<div class="data-filter">
+				<form>
+					<h2>{0}</h1>
+					<label>Value</label>
+					<input type="text" value="{1}"><br>
+					<input type="submit" value="Confirm">
+				</form>
+			</div>
+		`;
+
+		
 
 		this.get = function(position, sheet){
 
@@ -631,8 +880,42 @@
 					var selection = _this.cellArrayToStringRange(_this.getSelectedCellsInOrder()); 
 					_this.codeGen.generate(method, selection, _this.activeSheet);
 				}else if($(this).hasClass('filter')) {
-					//TODO: FILTER
-					console.log("filter");
+					const cell = _this.positionToCellLocation(_this.mouseRightClickLocation[0],_this.mouseRightClickLocation[1])[1];
+					const data = _this.data[_this.activeSheet];
+					
+					const sample = JSON.parse(_this.dataFormulas[_this.activeSheet][1][cell].substring(1));
+					let val = _this.filters[cell] !== undefined ? _this.filters[cell].v : undefined;
+
+					const filter_div = $('#code-editor-div');
+					if (typeof(sample)  === "string") {
+						if (val === undefined) val = sample;
+						filter_div.html(filter_string_tmplt.format(data[0][cell], val));
+						filter_div.find("form").on('submit', (e) => {
+							e.preventDefault();
+							const frm = e.target;
+							_this.filters[cell] = {
+								f: (v) => {
+									return v == frm[0].value;
+								},
+								v: frm[0].value
+							}
+							_this.confirm_filter();
+						});
+					} else if (typeof(sample) === 'number') {
+						if (val === undefined) val = [sample, sample];
+						filter_div.html(filter_number_tmplt.format(data[0][cell], val[0], val[1]));
+						filter_div.find("form").on('submit', (e) => {
+							e.preventDefault();
+							const frm = e.target;
+							_this.filters[cell] = {
+								f: (v) => {
+									return v >= frm[0].value && v <= frm[1].value;
+								},
+								v: [frm[0].value, frm[1].value]
+							}
+							_this.confirm_filter();
+						});
+					}
 				}
 
 				$('.context-menu').removeClass("shown");
@@ -2131,6 +2414,16 @@
 			this.wsManager.send({arguments:["EXPORT-CSV"]});
 		}
 
+		
+
+		const _select_dataset = (dataset) => {
+			if (_this.dataset === undefined) {
+				_add_node_dataset(dataset);
+			} else {
+				console.log(_this.dataset);
+			}
+		};
+
 		this.menuInit = function(){
 
 			var menu = $(this.dom).find('div-menu');
@@ -2200,16 +2493,38 @@
 			});
 
 			menu.find('menu-item.apriori').click(function(e) {
-				console.log("APRIRI");
+				_add_node_function('apriori')
 			});
 
 			menu.find('menu-item.fpgrowth').click(function(e) {
 				console.log("FP_GROWTH");
 			});
 
+			menu.find('menu-item.run').click(function(e) {
+				var queue = [];
+				for (const [id, node] of Object.entries(_this.graph)) {
+					if (node.t == 'f') {
+						const args = node.d;
+						for (let i=0; i<args.length; ++i) {
+							if (args[i] === null) continue;
+						}
+						queue.push({
+							id: parseInt(id),
+							fc: node.d
+						});
+					}
+				}
+				console.log(queue);
+				if (queue.length > 0) {
+					socket.emit('queue', queue);
+				} else {
+					alert("Nothing to be Run.")
+				}
+			});
+
 			menu.find('menu-item.housing').click(function(e) {
+				_select_dataset('housing');
 				http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
-					_this.current_dataset = 'housing';
 					_this.wsManager.send({arguments: ["CSV", resp]});
 				});
 			});
@@ -2227,7 +2542,7 @@
 
 			// bind plot activate functions
 			$(document).on('click', 'menu-item.plot-item', function(){
-
+					
 				var plot_id = $(this).attr('data-plot-id');
 
 				var plot = $("#"+plot_id).parents('.plot');
@@ -2242,6 +2557,7 @@
 				
 			});
 		}
+		
 
 		this.parseFloatForced = function(x){
 			var num = parseFloat(x);
