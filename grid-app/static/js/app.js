@@ -151,6 +151,7 @@
 		this.filters = {};
 
 		this.graph = {};
+		this.graph_current = {d: []};
 		this.d3_next_state = {
 			src: null,
 			arr: null,
@@ -244,14 +245,14 @@
 		});
 	
 		socket.on('done', (data) => {
-			for (let i=0; i<data.length; ++i) {
-				const curr = data[i];
-				if (curr.status && curr.source in _this.graph) {
-					_add_node_output(curr);
+			// for (let i=0; i<data.length; ++i) {
+				// const curr = data[i];
+				if (data.status && data.source in _this.graph) {
+					_add_node_output(data);
 				} else {
 					console.log("#Execution Failed.");
 				}
-			}
+			// }
 		});
 
 		function _simple_connect_check(src, dst) {
@@ -262,13 +263,13 @@
 			return false;
 		}
 	
-		function _reduced_sheet(input) {
-			var data = [];
-			for (let i=0; i<input.length; ++i) {
-				if (input[i][0] !== '')
-					data.push(input[i]);
+		function _reduced_sheet(raw) {
+			var data = [raw[0]];
+			for (let i=1; i<raw.length; ++i) {
+				if (raw[i][1] !== '')
+					data.push(raw[i]);
 				else 
-					break;
+					continue;
 			}
 			return data;
 		}
@@ -331,12 +332,13 @@
 
 			_this.graph[_id] = {
 				t: 'i', //node type
-				d: _reduced_sheet(_this.data[_this.activeSheet]), //node data
+				d: [],//_reduced_sheet(_this.data[_this.activeSheet]), //node data
 				g: {
 					l: text,	//text label
 					a: [new Set(), new Set()], //arrows
 				}
 			}
+			_this.graph_current = _this.graph[_id];
 		}
 	
 		function _add_node_function(func) {
@@ -359,14 +361,14 @@
 		function _add_node_output(output) {
 			const _id = Object.keys(_this.graph).length;
 
-			const cx = 50, cy = 250, r =20;
-			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT');
 
 			const src = gsvg.selectAll('circle').filter((d) => { return d.id==output.source });
 
-			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+			const cx = src.attr('cx'), cy = 250, r =20;
+			const node = gsvg.append('circle').attr('class', 'node').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+			const text = gsvg.append('text').attr('x', parseFloat(cx) + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT' + src.data()[0].id);
 
-			const arr = _add_arrow(src.attr('cx'), src.attr('cy'), cx, cy);
+			const arr = _add_arrow(src.attr('cx'), src.attr('cy'), node.attr('cx'), node.attr('cy'));
 
 			node.on('click', () => {
 				_create_view(output.message);
@@ -623,8 +625,20 @@
 			if(!this.data[sheet][position[0]]){
 				this.data[sheet][position[0]] = [];
 			}
-
 			this.data[sheet][position[0]][position[1]] = value.toString();
+
+			let ref = this.graph_current.d;
+			if (!ref[position[0]]) {
+				ref[position[0]] = [];
+			}
+			if (value == "") return;
+			if (position[0] == 0) {
+				ref[position[0]][position[1]] = value;
+			} else {
+				const num = Number(value);
+				if (isNaN(num)) ref[position[0]][position[1]] = value;
+				else ref[position[0]][position[1]] = num;
+			}
 		}
 
 		this.initTabs = function(){
@@ -2492,11 +2506,14 @@
 		
 
 		const _select_dataset = (dataset) => {
-			if (_this.dataset === undefined) {
+			http_req('GET', 'http://localhost:5000/example/' + dataset, (resp) => {
 				_add_node_dataset(dataset);
-			} else {
-				console.log(_this.dataset);
-			}
+				_this.wsManager.send({arguments: ["CSV", resp]});
+			});
+			// if (_this.dataset === undefined) {
+			// } else {
+				// console.log(_this.dataset);
+			// }
 		};
 
 		this.menuInit = function(){
@@ -2604,13 +2621,15 @@
 
 			menu.find('menu-item.housing').click(function(e) {
 				_select_dataset('housing');
-				http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
-					_this.wsManager.send({arguments: ["CSV", resp]});
-				});
+				
 			});
 
+			menu.find('menu-item.housing_v3').click(function(e) {
+				_select_dataset('housing_v3');
+			})
+
 			menu.find('menu-item.melbourne').click(function(e) {
-				console.log(_this);
+				console.log(_this.graph);
 				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});

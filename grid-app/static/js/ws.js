@@ -32,9 +32,8 @@
             };
             
             this.ws.onmessage = function (event) {
-                
                 var lines = event.data;
-    
+                
                 lines = lines.split("\n");
     
                 // DEBUGINFO
