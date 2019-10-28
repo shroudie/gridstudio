@@ -9,6 +9,27 @@
 		});
 	};
 
+	const data_from_csvtext = (text, sep=',') => {
+		var data = [];
+		text.split('\n').map((row) => {
+			if (row.length > 0) {
+				let cur = [];
+				row.split(sep).map((col) => {
+					const num = Number(col);
+					if (!isNaN(num)) cur.push(num);
+					else cur.push(col);
+				})
+				data.push(cur);
+			}
+		})
+		console.log(data);
+		return data;
+	}
+
+	const data_to_csvtext = (data) => {
+		return data.map((row) => row.join(',')).join('\n')
+	}
+
 	
 	// macOS swipe back prevention
 	history.pushState(null, null, '');
@@ -220,7 +241,7 @@
 					const dst = d3.select(_this.d3_next_state.dst).data()[0].id;
 					const src = d3.select(_this.d3_next_state.src).data()[0].id;
 					if (_simple_connect_check(src, dst)) {
-						_this.graph[dst].d[1] = _this.graph[src].d;
+						_this.graph[dst].d.args[1] = _this.graph[src].d;
 
 						_this.graph[src].g.a[0].add(_this.d3_next_state.arr);
 						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr);
@@ -248,6 +269,7 @@
 			// for (let i=0; i<data.length; ++i) {
 				// const curr = data[i];
 				if (data.status && data.source in _this.graph) {
+					// console.log(data);
 					_add_node_output(data);
 				} else {
 					console.log("#Execution Failed.");
@@ -274,14 +296,27 @@
 			return data;
 		}
 
-		const _add_node_mousecallback = (n) => {
-			n
-			.on('mouseover', () => {
-				document.body.style.cursor = 'pointer';
-			}) 
-			.on('mouseout', () => {
-				document.body.style.cursor = 'default';
-			})
+		const default_callback = {
+			'mouseover':  () => { document.body.style.cursor = 'pointer' },
+			'mouseout': () => { document.body.style.cursor = 'default' },
+			'click' : () => { console.log('clicked') }
+		};
+
+		const _add_node_mousecallback = (n, cb= {}) => {
+			for (const [k, v] of Object.entries(default_callback)) {
+				if (!(k in cb)) 
+					cb[k] = v;
+			}
+			for (const [k, v] of Object.entries(cb)) {
+				n.on(k, v);
+			}
+			// n
+			// .on('mouseover', () => {
+			// 	document.body.style.cursor = 'pointer';
+			// }) 
+			// .on('mouseout', () => {
+			// 	document.body.style.cursor = 'default';
+			// })
 		}
 
 		const _add_node_callback = (n) => {
@@ -326,7 +361,7 @@
 			const _id = Object.keys(_this.graph).length;
 			const cx = 50, cy = 50, r = 20;
 			const node = gsvg.append('circle').attr('class', 'nodei').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
-			_add_node_callback(node);
+			// _add_node_callback(node);
 
 			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text(dataset);
 
@@ -338,24 +373,54 @@
 					a: [new Set(), new Set()], //arrows
 				}
 			}
-			_this.graph_current = _this.graph[_id];
+			const ref = _this.graph[_id];
+
+			_add_node_mousecallback(node, {
+				'click': () => {
+					_this.data[_this.activeSheet] = [];
+					const text = data_to_csvtext(ref.d);
+					_this.wsManager.send({arguments: ["CSV", text]});
+				}
+			});
+
+			_this.graph_current = ref;
+			return ref;
 		}
 	
+		const kargs = {
+			apriori: { sup: 0.3 }
+		};
+
 		function _add_node_function(func) {
 			const _id = Object.keys(_this.graph).length;
 			const cx = 50, cy = 150, r =20;
 			const node = gsvg.append('circle').attr('class', 'nodef').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
-			_add_node_callback(node);
+			// _add_node_callback(node);
 			
 			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').attr('stroke', 'black').text(func);
 			_this.graph[_id] = {
 				t: 'f', //node type
-				d: [func, null], //node data
+				d: {
+					args: [func, null],
+					karg: kargs[func]
+				}, //[func, null], //node data
 				g: {
 					l: text,	//text label
 					a: [new Set(), new Set()], //[outgoing, incoming]
 				}
 			}
+			_add_node_mousecallback(node, {
+				mouseover: () => { 
+					document.body.style.cursor = 'pointer'; 
+					_this.d3_next_state.dst = d3.event.target; 
+				},
+				mouseout: () => { 
+					document.body.style.cursor = 'default';
+					_this.d3_next_state.dst = null; 
+				},
+				click: () => { console.log("#LCIEKD") },
+			});
+
 		}
 		
 		function _add_node_output(output) {
@@ -365,15 +430,15 @@
 			const src = gsvg.selectAll('circle').filter((d) => { return d.id==output.source });
 
 			const cx = src.attr('cx'), cy = 250, r =20;
-			const node = gsvg.append('circle').attr('class', 'node').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
+			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
 			const text = gsvg.append('text').attr('x', parseFloat(cx) + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT' + src.data()[0].id);
 
 			const arr = _add_arrow(src.attr('cx'), src.attr('cy'), node.attr('cx'), node.attr('cy'));
 
-			node.on('click', () => {
-				_create_view(output.message);
-			});
-			_add_node_mousecallback(node);
+			// node.on('click', () => {
+			// 	_create_view(output.message);
+			// });
+			_add_node_mousecallback(node, {'click': () => { _create_view(output.message) }});
 
 			_this.graph[_id] = {
 				t: 'o', //node type
@@ -398,7 +463,7 @@
 						'</tr>';
 				}
 			}
-			$('#code-editor-div').html('<table>' + content + '</table>');
+			$('#code-editor-div').html('<div overflow:auto;><table>' + content + '</table></div>');
 		}
 	
 	
@@ -627,18 +692,18 @@
 			}
 			this.data[sheet][position[0]][position[1]] = value.toString();
 
-			let ref = this.graph_current.d;
-			if (!ref[position[0]]) {
-				ref[position[0]] = [];
-			}
-			if (value == "") return;
-			if (position[0] == 0) {
-				ref[position[0]][position[1]] = value;
-			} else {
-				const num = Number(value);
-				if (isNaN(num)) ref[position[0]][position[1]] = value;
-				else ref[position[0]][position[1]] = num;
-			}
+			// let ref = this.graph_current.d;
+			// if (!ref[position[0]]) {
+			// 	ref[position[0]] = [];
+			// }
+			// if (value == "") return;
+			// if (position[0] == 0) {
+			// 	ref[position[0]][position[1]] = value;
+			// } else {
+			// 	const num = Number(value);
+			// 	if (isNaN(num)) ref[position[0]][position[1]] = value;
+			// 	else ref[position[0]][position[1]] = num;
+			// }
 		}
 
 		this.initTabs = function(){
@@ -2507,8 +2572,10 @@
 
 		const _select_dataset = (dataset) => {
 			http_req('GET', 'http://localhost:5000/example/' + dataset, (resp) => {
-				_add_node_dataset(dataset);
+				let ref = _add_node_dataset(dataset);
+
 				_this.wsManager.send({arguments: ["CSV", resp]});
+				ref.d = data_from_csvtext(resp);
 			});
 			// if (_this.dataset === undefined) {
 			// } else {
@@ -2598,11 +2665,15 @@
 					if (node.t == 'f') {
 						var valid = true;
 						for (let i=0; i<node.d.length; ++i) {
-							if (!node.d[i]) {
+							if (!node.d.args[i]) {
 								valid = false;
 								break;
 							};
 						}
+						// var reduced = [];
+						// node.d.map((l) => {
+						// 	if (l.length > 1) reduced.push(l);
+						// })
 						if (valid) {
 							queue.push({
 								id: parseInt(id),
@@ -2612,11 +2683,16 @@
 					}
 				}
 				console.log(queue);
-				if (queue.length > 0) {
-					socket.emit('queue', queue);
-				} else {
-					alert("Nothing to be Run.")
-				}
+				// return;
+				socket.emit('queue', queue);
+				// queue.map((q) => {
+				// 	socket.emit('queue', q)
+				// })
+				// if (queue.length > 0) {
+				// 	socket.emit('queue', queue);
+				// } else {
+				// 	alert("Nothing to be Run.")
+				// }
 			});
 
 			menu.find('menu-item.housing').click(function(e) {
@@ -2629,7 +2705,7 @@
 			})
 
 			menu.find('menu-item.melbourne').click(function(e) {
-				console.log(_this.graph);
+				console.log(_this.data);
 				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});
