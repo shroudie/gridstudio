@@ -243,8 +243,8 @@
 					if (_simple_connect_check(src, dst)) {
 						_this.graph[dst].d.args[1] = _this.graph[src].d;
 
-						_this.graph[src].g.a[0].add(_this.d3_next_state.arr);
-						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr);
+						_this.graph[src].g.a[0].add(_this.d3_next_state.arr.node());
+						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr.node());
 					} else {
 						alert('Invalid Operation.');
 						_this.d3_next_state.arr.remove();
@@ -292,35 +292,33 @@
 		}
 
 		const _focus_d3_element = (e) => {
-			const elem = d3.select(e).nodes();
-			console.log(elem[0]);
-			if (elem == _this.d3_next_state.foc) {
-				console.log("UNFOCUS");
+			const elem = d3.select(e);
+			elem.attr('stroke-width', 3);
+			// console.log(elem.data());
+			if (_this.d3_next_state.foc !== null && elem.node() == _this.d3_next_state.foc.node()) {
 				_unfocus_d3_element();
 				return;
-			}
-			if (e.getTagName() == 'circle') {
-				elem.attr('stroke-width', 3);
-			} else if (e.getTagName() == 'line') {
-				elem.attr('stroke-width', 3);
 			}
 			_this.d3_next_state.foc = elem;
 		}
 
 		const _unfocus_d3_element = () => {
 			const elem = _this.d3_next_state.foc;
-			console.log(elem);
-			return;
-			if (e.getTagName == 'circle') {
-				elem.attr('stroke-width', 1);
-			} else if (e.getTagName == 'line') {
-				elem.attr('stroke-width', 1);
-			}
+			elem.attr('stroke-width', 1);
 			_this.d3_next_state.foc = null;
 		}
 
 		const _remove_d3_element = () => {
-			console.log(_this.d3_next_state.foc)
+			if (_this.d3_next_state.foc !== null) {
+				const e = _this.d3_next_state.foc.node();
+				if (e.tagName == 'line') {
+					for (var k in _this.graph) {
+						_this.graph[k].g.a[0].delete(_this.d3_next_state.foc.node());
+						_this.graph[k].g.a[1].delete(_this.d3_next_state.foc.node());
+					}
+					_this.d3_next_state.foc.remove();
+				}
+			}
 		}
 		
 		const default_node_callback = {
@@ -489,10 +487,10 @@
 				d: output, //node data
 				g: {
 					l: text,	//text label
-					a: [new Set(), new Set([arr])], //arrows
+					a: [new Set(), new Set([arr.node()])], //arrows
 				}
 			}
-			_this.graph[output.source].g.a[0].add(arr);
+			_this.graph[output.source].g.a[0].add(arr.node());
 		}
 
 		function _create_view(view) {
