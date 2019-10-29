@@ -172,11 +172,11 @@
 		this.filters = {};
 
 		this.graph = {};
-		this.graph_current = {d: []};
 		this.d3_next_state = {
 			src: null,
 			arr: null,
 			dst: null,
+			foc: null,
 		};
 
 		const ACTION_CONNECT = 'CONN', ACTION_DRAG = 'DRAG';
@@ -247,6 +247,7 @@
 						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr);
 					} else {
 						alert('Invalid Operation.');
+						_this.d3_next_state.arr.remove();
 					}
 				} else {
 					_this.d3_next_state.arr.remove();
@@ -261,6 +262,11 @@
 		_add_d3_refs();
 
 		const socket = io('http://localhost:5000/task');
+		socket.on('connect_error', () => {
+			// alert("Make sure server is running and try again.");
+			socket.close();
+		});
+
 		socket.on('log', (data) => {
 			console.log("#Log: ", data)
 		});
@@ -284,26 +290,48 @@
 			}
 			return false;
 		}
-	
-		function _reduced_sheet(raw) {
-			var data = [raw[0]];
-			for (let i=1; i<raw.length; ++i) {
-				if (raw[i][1] !== '')
-					data.push(raw[i]);
-				else 
-					continue;
+
+		const _focus_d3_element = (e) => {
+			const elem = d3.select(e).nodes();
+			console.log(elem[0]);
+			if (elem == _this.d3_next_state.foc) {
+				console.log("UNFOCUS");
+				_unfocus_d3_element();
+				return;
 			}
-			return data;
+			if (e.getTagName() == 'circle') {
+				elem.attr('stroke-width', 3);
+			} else if (e.getTagName() == 'line') {
+				elem.attr('stroke-width', 3);
+			}
+			_this.d3_next_state.foc = elem;
 		}
 
-		const default_callback = {
+		const _unfocus_d3_element = () => {
+			const elem = _this.d3_next_state.foc;
+			console.log(elem);
+			return;
+			if (e.getTagName == 'circle') {
+				elem.attr('stroke-width', 1);
+			} else if (e.getTagName == 'line') {
+				elem.attr('stroke-width', 1);
+			}
+			_this.d3_next_state.foc = null;
+		}
+
+		const _remove_d3_element = () => {
+			console.log(_this.d3_next_state.foc)
+		}
+		
+		const default_node_callback = {
 			'mouseover':  () => { document.body.style.cursor = 'pointer' },
 			'mouseout': () => { document.body.style.cursor = 'default' },
-			'click' : () => { console.log('clicked') }
+			'click' : () => { console.log('clicked') },
+			'click.focus': () => { _focus_d3_element(d3.event.target) }
 		};
 
 		const _add_node_mousecallback = (n, cb= {}) => {
-			for (const [k, v] of Object.entries(default_callback)) {
+			for (const [k, v] of Object.entries(default_node_callback)) {
 				if (!(k in cb)) 
 					cb[k] = v;
 			}
@@ -317,16 +345,6 @@
 			// .on('mouseout', () => {
 			// 	document.body.style.cursor = 'default';
 			// })
-		}
-
-		const _add_node_callback = (n) => {
-			n
-			.on('mouseover', () => {
-				_this.d3_next_state.dst = d3.event.target;
-			}) 
-			.on('mouseout', () => {
-				_this.d3_next_state.dst = null;
-			})
 		}
 
 		function _add_d3_refs() {
@@ -346,7 +364,7 @@
 		}
 
 		function _add_arrow(x1, y1, x2=x1, y2=y1) {
-			return gsvg
+			const l = gsvg
 				.append('line')
 				.attr('x1', x1)
 				.attr('y1', y1)
@@ -355,6 +373,8 @@
 				.attr('stroke', 'black')
 				.attr('stroke-width', 1)
 				.attr('marker-end', 'url(#triangle)');
+			l.on('click', () => _focus_d3_element(l.node()));
+			return l;
 		}
 
 		function _add_node_dataset(dataset) {
@@ -380,10 +400,9 @@
 					_this.data[_this.activeSheet] = [];
 					const text = data_to_csvtext(ref.d);
 					_this.wsManager.send({arguments: ["CSV", text]});
-				}
+				},
 			});
 
-			_this.graph_current = ref;
 			return ref;
 		}
 	
@@ -391,24 +410,44 @@
 			apriori: { sup: 0.3 }
 		};
 
+		const _change_node_args = (id, key, val) => {
+			_this.graph[id].d.karg[key] = val;
+		}
+
+		const node_func_tplt = {
+			apriori: `
+				<div>
+					<h3>Dataset</h3>
+					<span>{0}</span>
+				</div>
+				<div>
+					<h3>Arguments</h3>
+					<label>Min Support</label> 
+					<input style="width:100px" name="sup" type="number" value={1} step=0.1 min="0" max="1" />
+				</div>
+			`
+		}
+
 		function _add_node_function(func) {
 			const _id = Object.keys(_this.graph).length;
 			const cx = 50, cy = 150, r =20;
 			const node = gsvg.append('circle').attr('class', 'nodef').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
 			// _add_node_callback(node);
 			
-			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').attr('stroke', 'black').text(func);
+			const text = gsvg.append('text').attr('x', cx + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text(func);
+
 			_this.graph[_id] = {
 				t: 'f', //node type
 				d: {
 					args: [func, null],
-					karg: kargs[func]
+					karg: JSON.parse(JSON.stringify(kargs[func])) //copy dictionary is necesasry
 				}, //[func, null], //node data
 				g: {
 					l: text,	//text label
 					a: [new Set(), new Set()], //[outgoing, incoming]
 				}
 			}
+			const ref = _this.graph[_id];
 			_add_node_mousecallback(node, {
 				mouseover: () => { 
 					document.body.style.cursor = 'pointer'; 
@@ -418,7 +457,12 @@
 					document.body.style.cursor = 'default';
 					_this.d3_next_state.dst = null; 
 				},
-				click: () => { console.log("#LCIEKD") },
+				click: () => { 
+					$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
+					$('#code-editor-div :input').on('change', (e) => {
+						_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
+					})
+				},
 			});
 
 		}
@@ -454,7 +498,6 @@
 		function _create_view(view) {
 			let content = '<tr><th>Item</th><th>Frequency</th></tr>';
 			if (view.type == 'table') {
-				console.log(view.data);
 				for (const [item, freq] of Object.entries(view.data)) {
 					content += 
 						'<tr>' + 
@@ -1620,6 +1663,9 @@
 					}
 					
 				}
+				else if(e.keyCode == 8) {
+					_remove_d3_element();
+				}
 				else if(e.keyCode == 9){
 					
 					if(_this.isFocusedOnElement()){
@@ -1667,7 +1713,7 @@
 					}
 				}
 				// delete
-				else if(e.keyCode == 46 || e.keyCode == 8){
+				else if(e.keyCode == 46){
 					// delete value in current cell
 					if(!_this.isFocusedOnElement()){
 						_this.deleteSelection();
@@ -2705,7 +2751,7 @@
 			})
 
 			menu.find('menu-item.melbourne').click(function(e) {
-				console.log(_this.data);
+				console.log(_this.graph);
 				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});
