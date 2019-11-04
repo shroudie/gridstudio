@@ -228,10 +228,10 @@
 				const n = _this.graph[e.id];
 				n.g.l.attr('x', x + D3_TEXT_OFFSET).attr('y', y);
 				n.g.a[0].forEach((arrow) => {
-					arrow.attr('x1', x).attr('y1', y);
+					d3.select(arrow).attr('x1', x).attr('y1', y);
 				})
 				n.g.a[1].forEach((arrow) => {
-					arrow.attr('x2', x).attr('y2', y);
+					d3.select(arrow).attr('x2', x).attr('y2', y);
 				})
 			}
 		})
@@ -245,6 +245,8 @@
 
 						_this.graph[src].g.a[0].add(_this.d3_next_state.arr.node());
 						_this.graph[dst].g.a[1].add(_this.d3_next_state.arr.node());
+
+						_this.graph[src].n.add(JSON.stringify(dst));
 					} else {
 						alert('Invalid Operation.');
 						_this.d3_next_state.arr.remove();
@@ -271,6 +273,11 @@
 			console.log("#Log: ", data)
 		});
 	
+		socket.on('intermediate', (data) => {
+			console.log(data.message);
+			_this.graph[parseInt(data.source)].cache = data.message;
+		})
+
 		socket.on('done', (data) => {
 			// for (let i=0; i<data.length; ++i) {
 				// const curr = data[i];
@@ -285,6 +292,8 @@
 
 		function _simple_connect_check(src, dst) {
 			//connect src to dst
+			return true;
+
 			if (_this.graph[src].t == 'i' && _this.graph[dst].t == 'f') {
 				return true;
 			}
@@ -293,16 +302,20 @@
 
 		const _focus_d3_element = (e) => {
 			const elem = d3.select(e);
-			elem.attr('stroke-width', 3);
-			// console.log(elem.data());
 			if (_this.d3_next_state.foc !== null && elem.node() == _this.d3_next_state.foc.node()) {
 				_unfocus_d3_element();
 				return;
 			}
+
+			_unfocus_d3_element();
+			elem.attr('stroke-width', 3);
+			// console.log(elem.data());
+			
 			_this.d3_next_state.foc = elem;
 		}
 
 		const _unfocus_d3_element = () => {
+			if (_this.d3_next_state.foc === null) return;
 			const elem = _this.d3_next_state.foc;
 			elem.attr('stroke-width', 1);
 			_this.d3_next_state.foc = null;
@@ -312,13 +325,37 @@
 			if (_this.d3_next_state.foc !== null) {
 				const e = _this.d3_next_state.foc.node();
 				if (e.tagName == 'line') {
+					var n1 = null, n2 = [];
 					for (var k in _this.graph) {
-						_this.graph[k].g.a[0].delete(_this.d3_next_state.foc.node());
-						_this.graph[k].g.a[1].delete(_this.d3_next_state.foc.node());
+						if (_this.graph[k].g.a[0].delete(_this.d3_next_state.foc.node())) {
+							n1 = _this.graph[k];
+						}
+						if (_this.graph[k].g.a[1].delete(_this.d3_next_state.foc.node())) {
+							n2.push(_this.graph[k]);
+						}
 					}
+					if (n1.t == 'i') { 
+						// node is dataset
+						n2.map((n) => {
+							n.d.args[1] = null;
+						})
+					}
+					_this.d3_next_state.foc.remove();
+				} else if (e.tagName == 'circle') {
+					const ref = _this.graph[_this.d3_next_state.foc.data()[0].id];
+					ref.g.l.remove();
+					const arrows = new Set([...ref.g.a[0], ...ref.g.a[1]]);
+					arrows.forEach((l) => {
+						for (const [_, node] of Object.entries(_this.graph)) {
+							node.g.a[0].delete(l);
+							node.g.a[1].delete(l);
+						}
+						d3.select(l).remove();
+					})
 					_this.d3_next_state.foc.remove();
 				}
 			}
+			_this.d3_next_state.foc = null;
 		}
 		
 		const default_node_callback = {
@@ -343,6 +380,21 @@
 			// .on('mouseout', () => {
 			// 	document.body.style.cursor = 'default';
 			// })
+		}
+
+		function _reset_datasheet() {
+			var index = -1;
+			const data = _this.data[_this.activeSheet];
+			for (let i=0; i<data.length; ++i) {
+				if (data[i][0] === "") {
+					index = i; break;
+				}
+			}
+			if (index > -1) {
+				for (var i=index; i>0; --i) {
+					_this.wsManager.send({arguments: ["DELETEROW", "A" + i]});
+				}
+			}
 		}
 
 		function _add_d3_refs() {
@@ -389,7 +441,8 @@
 				g: {
 					l: text,	//text label
 					a: [new Set(), new Set()], //arrows
-				}
+				},
+				n: new Set() //next target
 			}
 			const ref = _this.graph[_id];
 
@@ -397,6 +450,7 @@
 				'click': () => {
 					_this.data[_this.activeSheet] = [];
 					const text = data_to_csvtext(ref.d);
+					_reset_datasheet();
 					_this.wsManager.send({arguments: ["CSV", text]});
 				},
 			});
@@ -405,7 +459,14 @@
 		}
 	
 		const kargs = {
-			apriori: { sup: 0.3 }
+			apriori: { sup: 0.3, fun: 'apriori' },
+			filter: { 
+				arg: [{
+					k: 'close_city_name',
+					v: 'Berkeley',
+					t: 'string'
+				}], fun: 'filter'
+			},
 		};
 
 		const _change_node_args = (id, key, val) => {
@@ -423,7 +484,13 @@
 					<label>Min Support</label> 
 					<input style="width:100px" name="sup" type="number" value={1} step=0.1 min="0" max="1" />
 				</div>
+			`,
+			filter:`
+				<div class="data-filter">
+					Filter Panel
+				</div>
 			`
+			
 		}
 
 		function _add_node_function(func) {
@@ -443,7 +510,9 @@
 				g: {
 					l: text,	//text label
 					a: [new Set(), new Set()], //[outgoing, incoming]
-				}
+				},
+				n: new Set(),
+				cache: null,
 			}
 			const ref = _this.graph[_id];
 			_add_node_mousecallback(node, {
@@ -456,11 +525,21 @@
 					_this.d3_next_state.dst = null; 
 				},
 				click: () => { 
-					$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
-					$('#code-editor-div :input').on('change', (e) => {
-						_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
-					})
-				},
+					if (func === 'apriori') {
+						$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
+						$('#code-editor-div :input').on('change', (e) => {
+							_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
+						})
+					} else if (func === 'filter') {
+						$('#code-editor-div').html(node_func_tplt[func]); 
+						if (ref.cache !== null) {
+							if (ref.cache.type === 'sheet') {
+								_reset_datasheet();
+								_this.wsManager.send({arguments: ["CSV", data_to_csvtext(ref.cache.data)]});
+							}
+						}
+					}
+			},
 			});
 
 		}
@@ -990,6 +1069,7 @@
 			
 			var clickedCellPosition = _this.positionToCellLocation(_this.mouseRightClickLocation[0],_this.mouseRightClickLocation[1]);
 			_this.wsManager.send({arguments: [type, this.cellZeroIndexToString(clickedCellPosition[0], clickedCellPosition[1])]});
+			console.log({arguments: [type, this.cellZeroIndexToString(clickedCellPosition[0], clickedCellPosition[1])]});
 		}
 
 		this.insertRowColumn = function(type, direction){
@@ -1634,7 +1714,10 @@
 					}
 				}
 				else if(e.keyCode == 13){
-					
+					if (e.ctrlKey) {
+						$(_this.dom).find('div-menu').find('menu-item.run').click();
+					}
+					return;
 					if(_this.isFocusedOnElement()){
 						
 						if(_this.formula_input.is(":focus")){
@@ -1662,7 +1745,9 @@
 					
 				}
 				else if(e.keyCode == 8) {
-					_remove_d3_element();
+					if (document.activeElement.tagName !== 'input') {
+						_remove_d3_element();
+					}
 				}
 				else if(e.keyCode == 9){
 					
@@ -2703,26 +2788,46 @@
 				console.log("FP_GROWTH");
 			});
 
+			menu.find('menu-item.filter').click(function(e) {
+				_add_node_function('filter')
+			})
+
 			menu.find('menu-item.run').click(function(e) {
-				var queue = [];
+				var queue = {};
 				for (const [id, node] of Object.entries(_this.graph)) {
+					const _id = parseInt(id);
 					if (node.t == 'f') {
-						var valid = true;
-						for (let i=0; i<node.d.length; ++i) {
-							if (!node.d.args[i]) {
-								valid = false;
-								break;
-							};
+						queue[id] = {
+							id: id,
+							type: node.t,
+							karg: node.d.karg,
+							data: null,
+							next: Array.from(node.n),
 						}
-						// var reduced = [];
-						// node.d.map((l) => {
-						// 	if (l.length > 1) reduced.push(l);
-						// })
-						if (valid) {
-							queue.push({
-								id: parseInt(id),
-								fc: node.d
-							});
+					// 	var valid = true;
+					// 	for (let i=0; i<node.d.args.length; ++i) {
+					// 		if (!node.d.args[i]) {
+					// 			valid = false;
+					// 			break;
+					// 		};
+					// 	}
+					// 	var reduced = [];
+					// 	node.d.map((l) => {
+					// 		if (l.length > 1) reduced.push(l);
+					// 	})
+					// 	if (valid) {
+					// 		queue.push({
+					// 			id: parseInt(id),
+					// 			fc: node.d
+					// 		});
+					// 	}
+					} else if (node.t == 'i') {
+						queue[id] = {
+							id: id,
+							type: node.t,
+							karg: {},
+							data: node.d,
+							next: Array.from(node.n),
 						}
 					}
 				}
@@ -2749,7 +2854,7 @@
 			})
 
 			menu.find('menu-item.melbourne').click(function(e) {
-				console.log(_this.graph);
+				console.log(_this.data);
 				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});
