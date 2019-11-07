@@ -320,6 +320,11 @@
 			_this.d3_next_state.foc = null;
 		}
 
+		const _clear_d3_group = () => {
+			svg.selectAll("g").node().innerHTML = '';
+			_this.graph = {};
+		}
+
 		const _remove_d3_element = () => {
 			if (_this.d3_next_state.foc !== null) {
 				const e = _this.d3_next_state.foc.node();
@@ -398,7 +403,7 @@
 		}
 
 		function _add_d3_refs() {
-			gsvg.append('svg:defs')
+			svg.append('svg:defs')
 				.append('svg:marker')
 				.attr('id', 'triangle')
 				.attr('viewBox', '0 0 10 10')
@@ -546,11 +551,17 @@
 						});
 						$('#code-editor-div button').off('click');
 						$('#code-editor-div button#vis').on('click', () => {
-							var map_data = {
-								cols: _this.data[0][0],
-								grps: ref.cache.data
-							};
-							console.log(map_data);
+							if (ref.cache !== null) {
+								let group_data = [];
+								for (let i=0; i<ref.cache.data.length; ++i) {
+									group_data.push({data: ref.cache.data[i]});
+								}
+								var map_data = {
+									cols: _this.data[0][0],
+									grps: group_data
+								};
+								console.log(map_data);
+							}
 						})
 					} else if (func === 'filter') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
@@ -2923,10 +2934,18 @@
 			});
 
 			menu.find('menu-item.demo1').click(() => {
+				_clear_d3_group();
 
+				const dataset = _add_node_dataset('housing_v3');
+				const ap1 = _add_node_function('apriori');
+				_connect_node(dataset, ap1);
+
+				const ap2 = _add_node_function('apriori');
+				_move_node(ap2, parseInt(ap1.attr('cx')) + 100, ap1.attr('cy'));
+				_connect_node(dataset, ap2);
 			});
 			menu.find('menu-item.demo2').click(() => {
-				gsvg.selectAll("svg > *").remove();
+				_clear_d3_group();
 
 				const dataset = _add_node_dataset('housing_v3');
 				const ap1 = _add_node_function('apriori');
