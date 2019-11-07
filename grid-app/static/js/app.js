@@ -274,7 +274,7 @@
 		});
 	
 		socket.on('intermediate', (data) => {
-			console.log(data.message);
+			console.log(data);
 			_this.graph[parseInt(data.source)].cache = data.message;
 		})
 
@@ -353,6 +353,7 @@
 						d3.select(l).remove();
 					})
 					_this.d3_next_state.foc.remove();
+					delete _this.graph[_this.d3_next_state.foc.data()[0].id];
 				}
 			}
 			_this.d3_next_state.foc = null;
@@ -484,6 +485,9 @@
 					<label>Min Support</label> 
 					<input style="width:100px" name="sup" type="number" value={1} step=0.1 min="0" max="1" />
 				</div>
+				<div>
+					<button id="vis">Visualize</button>
+				</div>
 			`,
 			filter:`
 				<div class="data-filter">
@@ -531,9 +535,24 @@
 						$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
 						$('#code-editor-div :input').on('change', (e) => {
 							_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
+						});
+						$('#code-editor-div button').off('click');
+						$('#code-editor-div button#vis').on('click', () => {
+							ref.cache.data = ref.cache.data[0];
+							console.log(ref.cache.data);
+							let grps = [];
+							for (let i=0; i<ref.cache.data.length; ++i) {
+								grps.push({data: ref.cache.data[i]});
+							}
+							var map_data = {
+								cols: _this.data[0][0],
+								grps: grps
+							};
+							console.log(map_data);
 						})
 					} else if (func === 'filter') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
+						$('#code-editor-div button').off('click');
 						$('#code-editor-div button#imp').on('click', () => {
 							if (ref.cache !== null) {
 								if (ref.cache.type === 'sheet') {
@@ -541,7 +560,7 @@
 									_this.wsManager.send({arguments: ["CSV", data_to_csvtext(ref.cache.data)]});
 								}
 							}
-						})
+						});
 						$('#code-editor-div button#vis').on('click', () => {
 							var map_data = {
 								cols: ref.cache.data[0],
@@ -2876,6 +2895,10 @@
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});
 				// });
+			});
+
+			menu.find('menu-item.demo1').click(() => {
+				console.log("DEMO!");
 			});
 			
 			// bind for later access
