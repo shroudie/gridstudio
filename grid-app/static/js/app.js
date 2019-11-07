@@ -22,7 +22,6 @@
 				data.push(cur);
 			}
 		})
-		console.log(data);
 		return data;
 	}
 
@@ -547,15 +546,9 @@
 						});
 						$('#code-editor-div button').off('click');
 						$('#code-editor-div button#vis').on('click', () => {
-							ref.cache.data = ref.cache.data[0];
-							console.log(ref.cache.data);
-							let grps = [];
-							for (let i=0; i<ref.cache.data.length; ++i) {
-								grps.push({data: ref.cache.data[i]});
-							}
 							var map_data = {
 								cols: _this.data[0][0],
-								grps: grps
+								grps: ref.cache.data
 							};
 							console.log(map_data);
 						})
@@ -2930,6 +2923,11 @@
 			});
 
 			menu.find('menu-item.demo1').click(() => {
+
+			});
+			menu.find('menu-item.demo2').click(() => {
+				gsvg.selectAll("svg > *").remove();
+
 				const dataset = _add_node_dataset('housing_v3');
 				const ap1 = _add_node_function('apriori');
 				_connect_node(dataset, ap1);
