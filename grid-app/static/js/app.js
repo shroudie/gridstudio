@@ -547,6 +547,7 @@
 					if (func === 'apriori') {
 						$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
 						$('#code-editor-div :input').on('change', (e) => {
+							console.log(e);
 							_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
 						});
 						$('#code-editor-div button').off('click');
@@ -2943,6 +2944,9 @@
 				const ap2 = _add_node_function('apriori');
 				_move_node(ap2, parseInt(ap1.attr('cx')) + 100, ap1.attr('cy'));
 				_connect_node(dataset, ap2);
+
+				_this.graph[ap1.data()[0].id].d.karg.sup = 0.5;
+				
 			});
 			menu.find('menu-item.demo2').click(() => {
 				_clear_d3_group();
