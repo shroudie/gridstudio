@@ -543,7 +543,13 @@
 							}
 						})
 						$('#code-editor-div button#vis').on('click', () => {
-							console.log("CLICED");
+							var map_data = {
+								cols: ref.cache.data[0],
+								grps: [{
+									data: ref.cache.data.slice(1),
+								}]
+							};
+							console.log(map_data);
 						})
 					}
 				},
