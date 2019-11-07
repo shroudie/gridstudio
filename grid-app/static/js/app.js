@@ -446,6 +446,11 @@
 				n: new Set() //next target
 			}
 			const ref = _this.graph[_id];
+			http_req('GET', 'http://localhost:5000/example/' + dataset, (resp) => {
+				_this.wsManager.send({arguments: ["CSV", resp]});
+				ref.d = data_from_csvtext(resp);
+			});
+
 
 			_add_node_mousecallback(node, {
 				'click': () => {
@@ -456,16 +461,20 @@
 				},
 			});
 
-			return ref;
+			return node;
 		}
 	
 		const kargs = {
 			apriori: { sup: 0.3, fun: 'apriori' },
 			filter: { 
-				arg: [{
+				arg: [/*{
 					k: 'close_city_name',
 					v: 'Berkeley',
 					t: 'string'
+				}*/{
+					k: 'median_house_value',
+					v: [100000, 400000],
+					t: 'range'
 				}], fun: 'filter'
 			},
 		};
@@ -577,7 +586,30 @@
 					console.log("#RIGHT CLICKED");
 				}
 			});
+			return node;
+		}
 
+		function _find_node(_id) {
+			return gsvg.selectAll('circle').filter((d) => { return d.id==_id });
+		}
+
+		function _move_node(node, x, y) {
+			node.attr('cx', x).attr('cy', y);
+			const n = _this.graph[node.data()[0].id];
+			n.g.l.attr('x', x + D3_TEXT_OFFSET).attr('y', y);
+			n.g.a[0].forEach((arrow) => {
+				d3.select(arrow).attr('x1', x).attr('y1', y);
+			})
+			n.g.a[1].forEach((arrow) => {
+				d3.select(arrow).attr('x2', x).attr('y2', y);
+			})
+		}
+
+		function _connect_node(n1, n2) {
+			const arr = _add_arrow(n1.attr('cx'), n1.attr('cy'), n2.attr('cx'), n2.attr('cy'));
+			_this.graph[n1.data()[0].id].g.a[0].add(arr.node());
+			_this.graph[n2.data()[0].id].g.a[1].add(arr.node());
+			_this.graph[n1.data()[0].id].n.add(JSON.stringify(n2.data()[0].id));
 		}
 		
 		function _add_node_output(output) {
@@ -586,7 +618,7 @@
 
 			const src = gsvg.selectAll('circle').filter((d) => { return d.id==output.source });
 
-			const cx = src.attr('cx'), cy = 250, r =20;
+			const cx = src.attr('cx'), cy = parseInt(src.attr('cy')) + 100, r =20;
 			const node = gsvg.append('circle').attr('class', 'nodeo').attr('cx', cx).attr('cy', cy).attr('r', r).attr('stroke', 'black').style('fill', 'white').data([{id: _id}]).call(_drag_callback);
 			const text = gsvg.append('text').attr('x', parseFloat(cx) + D3_TEXT_OFFSET).attr('y', cy).attr('fill', 'black').attr('dy', '0.5em').text('OUTPUT' + src.data()[0].id);
 
@@ -2737,8 +2769,8 @@
 
 		const _select_dataset = (dataset) => {
 			http_req('GET', 'http://localhost:5000/example/' + dataset, (resp) => {
-				let ref = _add_node_dataset(dataset);
-
+				let node = _add_node_dataset(dataset);
+				const ref = _this.graph[node.data()[0].id];
 				_this.wsManager.send({arguments: ["CSV", resp]});
 				ref.d = data_from_csvtext(resp);
 			});
@@ -2881,12 +2913,12 @@
 			});
 
 			menu.find('menu-item.housing').click(function(e) {
-				_select_dataset('housing');
+				_add_node_dataset('housing');
 				
 			});
 
 			menu.find('menu-item.housing_v3').click(function(e) {
-				_select_dataset('housing_v3');
+				_add_node_dataset('housing_v3');
 			})
 
 			menu.find('menu-item.melbourne').click(function(e) {
@@ -2898,7 +2930,22 @@
 			});
 
 			menu.find('menu-item.demo1').click(() => {
-				console.log("DEMO!");
+				const dataset = _add_node_dataset('housing_v3');
+				const ap1 = _add_node_function('apriori');
+				_connect_node(dataset, ap1);
+				
+				const f1 = _add_node_function('filter');
+				_move_node(f1, parseInt(f1.attr('cx')) + 100, f1.attr('cy'));
+				_connect_node(dataset, f1);
+				const ap2 = _add_node_function('apriori');
+				_move_node(ap2, parseInt(f1.attr('cx')), parseInt(f1.attr('cy')) + 100);
+				_connect_node(f1, ap2);
+
+				const f2 = _add_node_function('filter');
+				_move_node(f2, parseInt(f1.attr('cx')) + 100, f1.attr('cy'));
+				_connect_node(dataset, f2);
+
+				// _add_node_function('filter');
 			});
 			
 			// bind for later access
