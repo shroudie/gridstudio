@@ -487,7 +487,9 @@
 			`,
 			filter:`
 				<div class="data-filter">
-					Filter Panel
+					<p>Filter Panel<p>
+					<button id="imp">Import</button>
+					<button id="vis">Visualize</button>
 				</div>
 			`
 			
@@ -532,14 +534,23 @@
 						})
 					} else if (func === 'filter') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
-						if (ref.cache !== null) {
-							if (ref.cache.type === 'sheet') {
-								_reset_datasheet();
-								_this.wsManager.send({arguments: ["CSV", data_to_csvtext(ref.cache.data)]});
+						$('#code-editor-div button#imp').on('click', () => {
+							if (ref.cache !== null) {
+								if (ref.cache.type === 'sheet') {
+									_reset_datasheet();
+									_this.wsManager.send({arguments: ["CSV", data_to_csvtext(ref.cache.data)]});
+								}
 							}
-						}
+						})
+						$('#code-editor-div button#vis').on('click', () => {
+							console.log("CLICED");
+						})
 					}
-			},
+				},
+				contextmenu: () => {
+					d3.event.preventDefault();
+					console.log("#RIGHT CLICKED");
+				}
 			});
 
 		}
