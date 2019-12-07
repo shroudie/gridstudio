@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+    <title>Map Data Visualization</title>
+    <style>
+      html, body, #map { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        .nicebox {
+          position: relative;
+          text-align: center;
+          font-family: "Roboto", "Arial", sans-serif;
+          font-size: 13px;
+          z-index: 5;
+          box-shadow: 0 4px 6px -4px #333;
+          padding: 5px 10px;
+          background: rgb(255,255,255);
+          background: linear-gradient(to bottom,rgba(255,255,255,1) 0%,rgba(245,245,245,1) 100%);
+          border: rgb(229, 229, 229) 1px solid;
+        }
+        #controls {
+          /* top: 10px; */
+          left: 200px;
+          width: 360px;
+          height: 45px;
+        }
+        #data-box {
+          top: 10px;
+          left: 900px;
+          height: 45px;
+          line-height: 45px;
+          display: none;
+        }
+        #heatmap-options {
+          width: 360px;
+          height: 20px;
+        }
+        #legend { display: flex; display: -webkit-box; padding-top: 7px }
+        .color-key {
+          background: linear-gradient(to right,
+            hsl(5, 69%, 54%) 0%,
+            hsl(29, 71%, 51%) 17%,
+            hsl(54, 74%, 47%) 33%,
+            hsl(78, 76%, 44%) 50%,
+            hsl(102, 78%, 41%) 67%,
+            hsl(127, 81%, 37%) 83%,
+            hsl(151, 83%, 34%) 100%);
+          flex: 1;
+          -webkit-box-flex: 1;
+          margin: 0 5px;
+          text-align: left;
+          font-size: 1.0em;
+          line-height: 1.0em;
+        }
+        #data-value { font-size: 2.0em; font-weight: bold }
+        #data-label { font-size: 2.0em; font-weight: normal; padding-right: 10px; }
+        #data-label:after { content: ':' }
+        #data-caret { margin-left: -5px; display: none; font-size: 14px; width: 14px}
+    </style>
+  </head>
+  <body>
+    <div id="floating-panel">
+        <button onclick="changeVisibility()">Change Map Visibility</button>
+        <button onclick="toggleHeatmap()">Toggle Heatmap</button>
+        <button onclick="changeGradient()">Change Heatmap Gradient</button>
+        <button onclick="changeRadius()">Change Heatmap Radius</button>
+        <button onclick="changeOpacity()">Change Heatmap Opacity</button>
+    </div>
+    <div id="controls" class='nicebox'>
+      <div>
+      <select id="heatmap-options">
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP02_0066PE">Median House Value</option>
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP05_0017E">Housing Median age</option>
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP05_0001E">Total population</option>
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP02_0016E">Average family size</option>
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP03_0088E">Median income</option>
+        <option value="https://storage.googleapis.com/mapsdevsite/json/DP03_0088E">Households</option>
+      </select>
+      </div>
+      <div id="legend">
+        <div id="census-min">min</div>
+        <div class="color-key"><span id="data-caret">&#x25c6;</span></div>
+        <div id="census-max">max</div>
+      </div>
+    </div>
+    <!-- <div id="data-box" class="nicebox">
+      <label id="data-label" for="data-value"></label>
+      <span id="data-value"></span>
+    </div> -->
+    <div id="map"></div>
+    <script id="scri">
+      var visibility = 'on';
+      var mapStyle = [{
+        'stylers': [{'visibility': visibility}]
+      }, {
+        'featureType': 'landscape',
+        'elementType': 'geometry',
+        'stylers': [{'visibility': 'on'}, {'color': '#fcfcfc'}]
+      }, {
+        'featureType': 'water',
+        'elementType': 'geometry',
+        'stylers': [{'visibility': 'on'}, {'color': '#bfd4ff'}]
+      }];
+      var map, heatmap;
+      var delayFactor = 0;
+      // var stuff = $('vis').data('map')
+      // var data = document.getElementById('vis').getAttribute('data-map');
+      // console.log(JSON.parse(stuff))
+      function initMap() {
+        console.log("109")
+        console.log(processData(data))
+        const dataPoints = processData(data);
+        // load the map
+        map = new google.maps.Map(document.getElementById('map'), {
+          center: {lat: 37.8, lng: -122.2},
+          zoom: 10,
+          styles: mapStyle
+        });
+        const colorMap = getRandomColors(data.length);
+        var heatmapPoints = [];
+        var markers = [];
+        var infowindow = new google.maps.InfoWindow();
+        //Initialize the Direction Service
+        // var service = new google.maps.DirectionsService();
+        //Set the Path Stroke Color
+        for (var i = 0; i < dataPoints.length; i++){ 
+          // i is group num
+          const color = colorMap[i];
+          const weight = dataPoints[i].length;
+          for (var j = 0; j < dataPoints[i].length; j++){
+            var point = dataPoints[i][j];
+            const heatmapPoint = {
+              location: new google.maps.LatLng(point.latitude, point.longitude),
+              weight: weight
+            }
+            heatmapPoints.push(heatmapPoint);
+            var marker = new google.maps.Marker({
+              map: map,
+              animation: google.maps.Animation.DROP,
+              position: {lat: point.latitude, lng: point.longitude},
+              data: point,
+              icon: pinSymbol(color),
+            });
+            markers.push(marker);
+            var geocoder = new google.maps.Geocoder();
+
+            function getCityLocation(point, city_name) {
+                geocoder.geocode({ 'address': city_name + ', CA'}, function (results, status) {
+                if (status == google.maps.GeocoderStatus.OK) {
+                  var city = results[0].geometry.location;
+                  var current = heatmapPoint.location;
+                  //Initialize the Path Array
+                  var request = {
+                      origin: current,
+                      destination: city,
+                      travelMode: google.maps.DirectionsTravelMode.DRIVING
+                  };
+                  var path = new google.maps.MVCArray();
+                  function m_get_directions_route(request) {
+                    new google.maps.DirectionsService().route(request, function (result, status) {
+                      if (status == google.maps.DirectionsStatus.OK) {
+                          for (var i = 0, len = result.routes[0].overview_path.length; i < len; i++) {
+                              path.push(result.routes[0].overview_path[i]);
+                          }
+                      } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
+                          delayFactor++;
+                          setTimeout(function () {
+                              m_get_directions_route(request);
+                          }, delayFactor * 1000);
+                      } else {
+                          console.log("Route: " + status);
+                      }
+                    });
+                  }
+                  var poly = new google.maps.Polyline({ map: map, strokeColor: color, strokeOpacity: 1.0, strokeWeight: 3});
+                  m_get_directions_route(request);
+                  poly.setPath(path);
+                } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
+                  delayFactor++;
+                  setTimeout(function () {
+                      getCityLocation(point, city_name);
+                  }, delayFactor * 1000);
+                }
+                });
+              }
+            if(point.big_city_name !== undefined){
+              getCityLocation(point, point.big_city_name);
+            } 
+            // else if(point.close_city_name !== undefined){
+            //   getCityLocation(point, point.close_city_name);
+            // }
+            bindInfoWindow(marker, map, infowindow, formatHoverData(point));
+          }
+        }
+        heatmap = new google.maps.visualization.HeatmapLayer({
+          data: heatmapPoints,
+          map: map
+        });
+        // add marker clustering
+        var markerCluster = new MarkerClusterer(map, markers,
+            {imagePath: '../image/m', maxZoom: 15});
+      }
+
+      function bindInfoWindow(marker, map, infowindow, data) {
+          marker.addListener('click', function() {
+            infowindow.setContent(data);
+            infowindow.open(map, this);
+          });
+          marker.addListener('mouseover', function() {
+            infowindow.setContent(data)
+            infowindow.open(map, this);
+          });
+
+          marker.addListener('mouseout', function() {
+            infowindow.close();
+          }); 
+      } 
+
+      function formatHoverData(data) {
+        var results = [];
+        Object.keys(data).forEach(function(key) {
+          const text = '<b>' + key + '</b>' + ': ' + data[key];
+          results.push(text);
+        });
+        return '<p>' + results.join('<br />') + '</p>';
+      }
+
+      function getRandomColors(numColors) {
+        var colors = [];
+        for (var i = 0; i < numColors; i++){
+          color = getRandomColor();
+          while (colors.includes(color)){
+            color = getRandomColor();
+          }
+          colors.push(color);
+        }
+        return colors;
+      }
+
+      function getRandomColor() {      
+        var letters = '0123456789ABCDEF';
+        var color = '#';
+        for (var j = 0; j < 6; j++) {
+          color += letters[Math.floor(Math.random() * 16)];
+        }
+        return color;
+      }
+
+
+      function pinSymbol(color) {
+          return {
+              path: 'M 0,0 C -2,-20 -10,-22 -10,-30 A 10,10 0 1,1 10,-30 C 10,-22 2,-20 0,0 z M -2,-30 a 2,2 0 1,1 4,0 2,2 0 1,1 -4,0',
+              fillColor: color,
+              fillOpacity: 1,
+              strokeColor: '#000',
+              strokeWeight: 2,
+              scale: 1,
+        };
+      }
+
+      function toggleHeatmap() {
+        heatmap.setMap(heatmap.getMap() ? null : map);
+      }
+
+      function changeGradient() {
+        var gradient = [
+          'rgba(0, 255, 255, 0)',
+          'rgba(0, 255, 255, 1)',
+          'rgba(0, 191, 255, 1)',
+          'rgba(0, 127, 255, 1)',
+          'rgba(0, 63, 255, 1)',
+          'rgba(0, 0, 255, 1)',
+          'rgba(0, 0, 223, 1)',
+          'rgba(0, 0, 191, 1)',
+          'rgba(0, 0, 159, 1)',
+          'rgba(0, 0, 127, 1)',
+          'rgba(63, 0, 91, 1)',
+          'rgba(127, 0, 63, 1)',
+          'rgba(191, 0, 31, 1)',
+          'rgba(255, 0, 0, 1)'
+        ]
+        heatmap.set('gradient', heatmap.get('gradient') ? null : gradient);
+      }
+
+      function changeRadius() {
+        heatmap.set('radius', heatmap.get('radius') ? null : 20);
+      }
+
+      function changeOpacity() {
+        heatmap.set('opacity', heatmap.get('opacity') ? null : 0.2);
+      }
+
+      function changeVisibility() {
+        visibility = visibility === 'on' ? 'off' : 'on'; 
+        mapStyle = [{
+          'stylers': [{'visibility': visibility}]
+        }, {
+          'featureType': 'landscape',
+          'elementType': 'geometry',
+          'stylers': [{'visibility': 'on'}, {'color': '#fcfcfc'}]
+        }, {
+          'featureType': 'water',
+          'elementType': 'geometry',
+          'stylers': [{'visibility': 'on'}, {'color': '#bfd4ff'}]
+        }];
+        map.setOptions({styles: mapStyle});
+      }
+
+
+      function processData(data) {
+        var resData = [];
+        for (var i=0; i < data.length; i++){
+          // for each group
+          var dataMap = {};
+          var currGroup = [];
+          for (var j=0; j < data[i].length; j++){
+            // in each group
+            const dataPt = data[i][j];
+            if(dataPt.latitude.toString()+dataPt.longitude.toString() in dataMap) {
+              dataMap[dataPt.latitude.toString()+dataPt.longitude.toString()].push(dataPt)
+            } else {
+              dataMap[dataPt.latitude.toString()+dataPt.longitude.toString()] = [dataPt]
+            }
+          }
+          for (pt in dataMap){
+            const pts = dataMap[pt];
+            var ptMap = {};
+            for (var m=0; m < pts.length; m++){
+              const point = pts[m];
+              for (key in point){
+                if (key !== 'longitude' && key !== 'latitude' && key !== 'longitude' && key !== 'ocean_proximity' && key !== 'close_city_name' && key !== 'close_city_dist' && key !== 'big_city_name' && key !== 'big_city_dist'){
+                  if (key in ptMap){
+                    ptMap[key].push(point[key]);
+                  } else {
+                    ptMap[key] = [point[key]];
+                  }
+                } else {
+                  ptMap[key] = point[key];
+                }
+              }
+            }
+            for (key in ptMap){
+              if (Array.isArray(ptMap[key])){
+                const avg = ptMap[key].reduce((a, b) => a + b, 0) / ptMap[key].length;
+                ptMap[key] = avg;
+              }
+            }
+            currGroup.push(ptMap);
+          }
+          resData.push(currGroup);
+        }
+        return resData;
+      }
+   
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADNEjDW1J_ZZuVS7lpK4YiBtrUHNj4Duk&callback=initMap&libraries=visualization,geometry">
+    </script>
+  </body>
+</html>
+

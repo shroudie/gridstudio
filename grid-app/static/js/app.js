@@ -561,7 +561,15 @@
 									cols: _this.data[0][0],
 									grps: group_data
 								};
+								console.log("map_data")
 								console.log(map_data);
+								data = processData(map_data);
+								console.log(data);
+								var d = document.createAttribute('data-map');
+								d.value = data;
+								var button = document.getElementById('vis');
+								button.setAttributeNode(d);
+								$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 							}
 						})
 					} else if (func === 'filter') {
@@ -582,7 +590,14 @@
 									data: ref.cache.data.slice(1),
 								}]
 							};
-							console.log(map_data);
+							// console.log(map_data);
+							data = processData(map_data)
+							// console.log(data);
+							var d = document.createAttribute('data-map');
+							d.value = data;
+							var button = document.getElementById('vis');
+							button.setAttributeNode(d);
+							$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 						})
 					}
 				},
@@ -592,6 +607,27 @@
 				}
 			});
 			return node;
+		}
+
+		function processData(d) {
+			var results = [];
+			var key = d.cols;
+			var groups = d.grps;
+			for (var i = 0; i < groups.length; i++){
+				var currGroup = []; 
+				var group = groups[i].data;
+				for (var j = 0; j < group.length; j++){
+					var point = group[j];
+					var item = {};
+					for (var k = 0; k < point.length; k++){
+						var val = point[k];
+						item[key[k]] = val;
+					}
+					currGroup.push(item)
+				}
+				results.push(currGroup);
+			}
+			return results;
 		}
 
 		function _find_node(_id) {

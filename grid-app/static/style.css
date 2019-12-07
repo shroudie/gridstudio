@@ -548,3 +548,13 @@ td, th {
 tr:nth-child(even) {
   background-color: #dddddd;
 }
+
+.modal-content {
+  width: 800px;
+  height: 800px;
+}
+
+.modal-body {
+  width: 730px;
+  height: 550px;
+}

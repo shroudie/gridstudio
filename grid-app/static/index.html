@@ -126,6 +126,25 @@
 			</div>
 			<div id='code-editor-div' class='code-editor'></div>
 			<div id='svg-panel-div' class='code-editor' style="top:50%;"></div>
+			<div id="MyPopup" class="modal fade" role="dialog">
+				<div class="modal-dialog modal-xl modal-dialog-scrollable">
+					<!-- Modal content-->
+					<div class="modal-content">
+						<div class="modal-header">
+							<button type="button" class="close" data-dismiss="modal">
+								&times;</button>
+							<h4 class="modal-title">
+							</h4>
+						</div>
+						<div class="modal-body">
+						</div>
+						<!-- <div class="modal-footer">
+							<button type="button" class="btn btn-danger" data-dismiss="modal">
+								Close</button>
+						</div> -->
+					</div>
+				</div>
+			</div>
 			<!--div class='code-editor'>
 				<div id="editor">
 					<div class="file-editor">
@@ -166,6 +185,8 @@
 		<script src="js/libs/es6-promise.auto.min.js"></script>
 		<script src="js/libs/fetch.min.js"></script>
 		<script src="js/libs/jquery-3.3.1.min.js"></script>
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.0/js/bootstrap.min.js"></script>
+		<link rel="stylesheet" href='https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/3.0.3/css/bootstrap.min.css' media="screen" />
 		<script src="js/libs/plotly-finance.min.js" charset="utf-8"></script>
 		<script src="xterm/dist/main.js"></script>
 		<script src="js/editor/ace.js"></script>
@@ -175,5 +196,6 @@
 		<script src="js/ws.js"></script>
 		<script src="js/codegen.js"></script>
 		<script src="js/app.js"></script>
+		<script src="js/markerclusterer.js"></script>
 	</body>
 </html>
