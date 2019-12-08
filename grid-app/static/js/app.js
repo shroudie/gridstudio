@@ -272,9 +272,19 @@
 			console.log("#Log: ", data)
 		});
 	
+		function add_intermediate_data(data) {
+			const _id = parseInt(data.source);
+			_find_node(_id).style('fill', '#D3D3D3');
+			_this.graph[_id].cache = data.message;
+		}
+
+		function clear_intermediate_data(_id) {
+			_find_node(_id).style('fill', 'white');
+			_this.graph[_id].cache = null;
+		}
+
 		socket.on('intermediate', (data) => {
-			console.log(data);
-			_this.graph[parseInt(data.source)].cache = data.message;
+			add_intermediate_data(data);
 		})
 
 		socket.on('done', (data) => {
@@ -477,7 +487,7 @@
 					t: 'string'
 				}*/{
 					k: 'median_house_value',
-					v: [100000, 400000],
+					v: [100000, 200000],
 					t: 'range'
 				}], fun: 'filter'
 			},
@@ -505,8 +515,19 @@
 			filter:`
 				<div class="data-filter">
 					<p>Filter Panel<p>
-					<button id="imp">Import</button>
-					<button id="vis">Visualize</button>
+					<div>
+						<select>
+						</select>
+						</br>
+						<label>Min</label> 
+						<input style="width:100px" name="min" type="number" value={0} step=1 />
+						<label>Max</label> 
+						<input style="width:100px" name="max" type="number" value={1} step=1 />
+					</div>
+					<div>
+						<button id="imp">Import</button>
+						<button id="vis">Visualize</button>
+					</div>
 				</div>
 			`
 			
@@ -573,7 +594,36 @@
 							}
 						})
 					} else if (func === 'filter') {
-						$('#code-editor-div').html(node_func_tplt[func]); 
+						var filter_args = _this.graph[_id].d.karg.arg[0];
+
+						$('#code-editor-div').html(node_func_tplt[func].format(filter_args.v[0], filter_args.v[1])); 
+						for (const [k, node] of Object.entries(_this.graph)) {
+							if (node.n.has(_id.toString())) {
+								if (node.d !== undefined) {
+									for (var i=0; i<node.d[0].length; ++i) {
+										// if (node.d[0][i] == filter_args.k) {
+										// 	$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i], selected=true));
+
+										// } else {
+											$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i]));
+										// }
+									}
+								}
+								$('#code-editor-div select').val(filter_args.k);
+								break;
+							}
+						}
+						$('#code-editor-div select').on('change', function() {
+							filter_args.k = this.value;
+						});
+						$('#code-editor-div input').on('change', function() {
+							if (this.name == 'min') {
+								filter_args.v[0] = this.value;
+							} else if (this.name == 'max') {
+								filter_args.v[1] = this.value;
+							}
+						});
+						
 						$('#code-editor-div button').off('click');
 						$('#code-editor-div button#imp').on('click', () => {
 							if (ref.cache !== null) {
@@ -631,7 +681,7 @@
 		}
 
 		function _find_node(_id) {
-			return gsvg.selectAll('circle').filter((d) => { return d.id==_id });
+			return gsvg.selectAll('circle').filter((d) => { return d.id ==_id });
 		}
 
 		function _move_node(node, x, y) {
@@ -1854,8 +1904,10 @@
 					
 				}
 				else if(e.keyCode == 8) {
-					if (document.activeElement.tagName !== 'input') {
+					if (document.activeElement.tagName !== 'INPUT') {
 						_remove_d3_element();
+					} else {
+						return true;
 					}
 				}
 				else if(e.keyCode == 9){
@@ -2963,7 +3015,7 @@
 			})
 
 			menu.find('menu-item.melbourne').click(function(e) {
-				console.log(_this.data);
+				console.log(_this.graph);
 				// http_req('GET', 'http://localhost:5000/example/test_sql', (resp) => {
 				// 	_this.current_dataset = 'melbourne';
 				// 	_this.wsManager.send({arguments: ["CSV", resp]});
@@ -3002,6 +3054,27 @@
 				_move_node(f2, parseInt(f1.attr('cx')) + 100, f1.attr('cy'));
 				_connect_node(dataset, f2);
 
+				// _add_node_function('filter');
+			});
+			menu.find('menu-item.demo3').click(() => {
+				_clear_d3_group();
+
+				const dataset = _add_node_dataset('housing_v3');
+				
+				const f1 = _add_node_function('filter');
+				_move_node(f1, parseInt(dataset.attr('cx')), parseInt(dataset.attr('cy')) + 100);
+				_connect_node(dataset, f1);
+
+
+				const f2 = _add_node_function('filter');
+				_move_node(f2, parseInt(dataset.attr('cx')) + 100, parseInt(dataset.attr('cy')) + 100);
+				_connect_node(dataset, f2);
+
+				const n1 = f1.data()[0].id;
+				_this.graph[n1].d.karg.arg[0].v[0] = 200000;
+				_this.graph[n1].d.karg.arg[0].v[1] = 400000;
+
+				// _this.graph[_id].d.karg.arg[f1.data()['id']]
 				// _add_node_function('filter');
 			});
 			
