@@ -460,7 +460,7 @@
 				n: new Set() //next target
 			}
 			const ref = _this.graph[_id];
-			http_req('GET', 'http://localhost:5000/example/' + dataset, (resp) => {
+			http_req('GET', 'http://localhost:5000/example/dataset/' + dataset, (resp) => {
 				_this.wsManager.send({arguments: ["CSV", resp]});
 				ref.d = data_from_csvtext(resp);
 			});
@@ -494,6 +494,11 @@
 					t: 'range'
 				}], fun: 'filter'
 			},
+			preprocess: {
+				fun: 'preprocess',
+				type: 'JOIN',
+				keys: ['City', 'Name']
+			}
 		};
 
 		const _change_node_args = (id, key, val) => {
@@ -546,6 +551,14 @@
 					<ul class="checkbox">
 					</ul>
 					</fieldset>
+				</div>
+			`,
+			preprocess: `
+				<div>
+					<h3>Preprocess</h3>
+				</div>
+				<div>
+					<button>Import</button>
 				</div>
 			`,
 			filter:`
@@ -633,17 +646,16 @@
 						$('#code-editor-div button#vis').on('click', () => {
 							if (ref.cache !== null) {
 								let group_data = [];
+								const freq_table = ref.cache.data;
 								for (let i=0; i<ref.cache.data.length; ++i) {
-									group_data.push({data: ref.cache.data[i]});
+									group_data.push({data: freq_table.data[i]});
 								}
+								const freq_items = freq_table.apri;
 								var map_data = {
 									cols: _this.data[0][0],
 									grps: group_data
 								};
-								console.log("map_data")
-								console.log(map_data);
 								data = processData(map_data);
-								console.log(data);
 								var d = document.createAttribute('data-map');
 								d.value = data;
 								var button = document.getElementById('vis');
@@ -730,6 +742,17 @@
 								}
 							}
 						});
+					} else if (func === 'preprocess') {
+						$('#code-editor-div').html(node_func_tplt[func]); 
+						$('#code-editor-div button').on('click', () => {
+							if (ref.cache !== null) {
+								if (ref.cache.type === 'sheet') {
+									console.log(ref.cache.data);
+									_reset_datasheet();
+									_this.wsManager.send({arguments: ["CSV", data_to_csvtext(ref.cache.data)]});
+								}
+							}
+						})
 					}
 				},
 				contextmenu: () => {
@@ -3038,6 +3061,10 @@
 				_add_node_function('filter')
 			});
 
+			menu.find('menu-item.preprocess').click(function(e) {
+				_add_node_function('preprocess');
+			})
+
 			menu.find('menu-item.kmeans').click(function(e) {
 				_add_node_function('kmeans')
 			});
@@ -3098,18 +3125,30 @@
 				// }
 			});
 
-			menu.find('menu-item.housing').click(function(e) {
-				_add_node_dataset('housing');
+			http_req('GET', 'http://localhost:5000/example/dataset', (resp) => {
+				const list = JSON.parse(resp);
+				list.forEach((e) => {
+					menu.find('menu-list.datasets').append(`\
+						<menu-item class='{0}'>{0}</menu-item>\
+					`.format(e));
+				});
+				menu.find('menu-list.datasets').find('menu-item').click(function(e) {
+					_add_node_dataset(this.getAttribute('class'));
+				})
+			})
+
+			// menu.find('menu-item.housing').click(function(e) {
+			// 	_add_node_dataset('housing');
 				
-			});
+			// });
 
-			menu.find('menu-item.housing_v3').click(function(e) {
-				_add_node_dataset('housing_v3');
-			});
+			// menu.find('menu-item.housing_v3').click(function(e) {
+			// 	_add_node_dataset('housing_v3');
+			// });
 
-			menu.find('menu-item.housing_v5').click(function(e) {
-				_add_node_dataset('housing_v5');
-			});
+			// menu.find('menu-item.housing_v5').click(function(e) {
+			// 	_add_node_dataset('housing_v5');
+			// });
 
 			menu.find('menu-item.melbourne').click(function(e) {
 				console.log(_this.graph);
@@ -3165,7 +3204,7 @@
 
 				const f2 = _add_node_function('filter');
 				_move_node(f2, parseInt(dataset.attr('cx')) + 100, parseInt(dataset.attr('cy')) + 100);
-				_connect_node(dataset, f2);
+				_connect_node(f1, f2);
 
 				const n1 = f1.data()[0].id;
 				_this.graph[n1].d.karg.arg[0].v[0] = 200000;
@@ -3201,6 +3240,22 @@
 				const f0 = _add_node_function('capriori');
 				_move_node(f0, parseInt(dataset.attr('cx')) + 100, parseInt(dataset.attr('cy')));
 				_connect_node(dataset, f0);
+			});
+			menu.find('menu-item.demo6').click(() => {
+				_clear_d3_group();
+
+				const dataset1 = _add_node_dataset('city_population');
+				const dataset2 = _add_node_dataset('city_coordinate');
+				_move_node(dataset2, parseInt(dataset2.attr('cx')), parseInt(dataset2.attr('cy')) + 100);
+				
+				const f0 = _add_node_function('preprocess');
+				_move_node(f0, parseInt(dataset1.attr('cx')) + 150, parseInt(dataset1.attr('cy')));
+				_connect_node(dataset1, f0);
+				_connect_node(dataset2, f0);
+
+				const f1 = _add_node_function('filter');
+				_move_node(f1, parseInt(dataset1.attr('cx')) + 300, parseInt(dataset1.attr('cy')));
+				_connect_node(f0, f1);
 			});
 			
 			// bind for later access
