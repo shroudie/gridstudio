@@ -550,11 +550,16 @@ tr:nth-child(even) {
 }
 
 .modal-content {
-  width: 800px;
+  width: 885px;
   height: 800px;
+  margin: auto;
 }
 
 .modal-body {
-  width: 730px;
+  width: 865px;
   height: 550px;
+}
+
+.modal-dialog {
+  width: 100% !important;
 }
