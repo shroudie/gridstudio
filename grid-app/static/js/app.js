@@ -627,7 +627,6 @@
 					if (func === 'apriori') {
 						$('#code-editor-div').html(node_func_tplt[func].format("", ref.d.karg.sup)); 
 						$('#code-editor-div :input').on('change', (e) => {
-							console.log(e);
 							_this.graph[_id].d.karg[e.target.name] = parseFloat(e.target.value);
 						});
 						$('#code-editor-div button').off('click');
@@ -667,9 +666,9 @@
 						});
 						$('#code-editor-div input').on('change', function() {
 							if (this.name == 'min') {
-								filter_args.v[0] = this.value;
+								filter_args.v[0] = parseInt(this.value);
 							} else if (this.name == 'max') {
-								filter_args.v[1] = this.value;
+								filter_args.v[1] = parseInt(this.value);
 							}
 						});
 						
@@ -702,7 +701,8 @@
 						$('#code-editor-div').html(node_func_tplt[func]); 
 						$('#code-editor-div button').on('click', () => {
 							if (ref.cache) {
-								console.log(ref.cache);
+								const cols = _get_node_columns(_id);
+								const data = ref.cache.data.input;
 							}
 						})
 					} else if (func === 'validate') {
