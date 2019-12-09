@@ -480,6 +480,9 @@
 	
 		const kargs = {
 			apriori: { sup: 0.3, fun: 'apriori' },
+			capriori: { cols: [], fun: 'capriori' },
+			kmeans: { cluster: [2, 5], fun: 'kmeans' }, 
+			validate: { method: 'normcut', fun: 'validate' },
 			filter: { 
 				arg: [/*{
 					k: 'close_city_name',
@@ -498,6 +501,26 @@
 		}
 
 		const node_func_tplt = {
+			validate: `
+				<div>
+					<h3>Validate</h3>
+				</div>
+				<div>
+					<select>
+						<option value="normcut" selected>Normalized Cut</option>
+					</select>
+				</div>
+			`,
+			kmeans: `
+				<div>
+					<h3>Kmeans</h3>
+				</div>
+				<div>
+					<label>Range #ofClusters</label></br>
+					<input style="width:100px" name="sup" type="number" value=2 step=1 min="2" /></br>
+					<input style="width:100px" name="sup" type="number" value=5 step=1 min="2" />
+				</div>
+			`,
 			apriori: `
 				<div>
 					<h3>Dataset</h3>
@@ -510,6 +533,14 @@
 				</div>
 				<div>
 					<button id="vis">Visualize</button>
+				</div>
+			`,
+			capriori: `
+				<div>
+					<h3>Cluster Apriori</h3>
+				</div>
+				<div>
+					<label>Columns</label> 
 				</div>
 			`,
 			filter:`
@@ -601,12 +632,7 @@
 							if (node.n.has(_id.toString())) {
 								if (node.d !== undefined) {
 									for (var i=0; i<node.d[0].length; ++i) {
-										// if (node.d[0][i] == filter_args.k) {
-										// 	$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i], selected=true));
-
-										// } else {
-											$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i]));
-										// }
+										$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i]));
 									}
 								}
 								$('#code-editor-div select').val(filter_args.k);
@@ -649,6 +675,12 @@
 							button.setAttributeNode(d);
 							$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 						})
+					} else if (func === 'kmeans') {
+						$('#code-editor-div').html(node_func_tplt[func]); 
+					} else if (func === 'validate') {
+						$('#code-editor-div').html(node_func_tplt[func]); 
+					} else if (func === 'capriori') {
+						$('#code-editor-div').html(node_func_tplt[func]); 
 					}
 				},
 				contextmenu: () => {
@@ -718,7 +750,7 @@
 			// node.on('click', () => {
 			// 	_create_view(output.message);
 			// });
-			_add_node_mousecallback(node, {'click': () => { _create_view(output.message) }});
+			_add_node_mousecallback(node, {'click': () => { _create_view(output.message, title=output.title) }});
 
 			_this.graph[_id] = {
 				t: 'o', //node type
@@ -731,8 +763,8 @@
 			_this.graph[output.source].g.a[0].add(arr.node());
 		}
 
-		function _create_view(view) {
-			let content = '<tr><th>Item</th><th>Frequency</th></tr>';
+		function _create_view(view, title="") {
+			let content = '<tr><th>Key</th><th>Value</th></tr>';
 			if (view.type == 'table') {
 				for (const [item, freq] of Object.entries(view.data)) {
 					content += 
@@ -742,7 +774,7 @@
 						'</tr>';
 				}
 			}
-			$('#code-editor-div').html('<div overflow:auto;><table>' + content + '</table></div>');
+			$('#code-editor-div').html('<div><h3>' + title + '</h3></div><div overflow:auto;><table>' + content + '</table></div>');
 		}
 	
 	
@@ -2945,13 +2977,25 @@
 				_add_node_function('apriori')
 			});
 
+			menu.find('menu-item.capriori').click(function(e) {
+				_add_node_function('capriori')
+			});
+
 			menu.find('menu-item.fpgrowth').click(function(e) {
 				console.log("FP_GROWTH");
 			});
 
 			menu.find('menu-item.filter').click(function(e) {
 				_add_node_function('filter')
-			})
+			});
+
+			menu.find('menu-item.kmeans').click(function(e) {
+				_add_node_function('kmeans')
+			});
+
+			menu.find('menu-item.validate').click(function(e) {
+				_add_node_function('validate')
+			});
 
 			menu.find('menu-item.run').click(function(e) {
 				var queue = {};
@@ -3012,7 +3056,11 @@
 
 			menu.find('menu-item.housing_v3').click(function(e) {
 				_add_node_dataset('housing_v3');
-			})
+			});
+
+			menu.find('menu-item.housing_v5').click(function(e) {
+				_add_node_dataset('housing_v5');
+			});
 
 			menu.find('menu-item.melbourne').click(function(e) {
 				console.log(_this.graph);
@@ -3076,6 +3124,25 @@
 
 				// _this.graph[_id].d.karg.arg[f1.data()['id']]
 				// _add_node_function('filter');
+			});
+			menu.find('menu-item.demo4').click(() => {
+				_clear_d3_group();
+
+				const dataset = _add_node_dataset('housing_v5');
+				
+				const f0 = _add_node_function('filter');
+				_move_node(f0, parseInt(dataset.attr('cx')) + 100, parseInt(dataset.attr('cy')));
+				_connect_node(dataset, f0);
+
+				const f1 = _add_node_function('kmeans');
+				_move_node(f1, parseInt(f0.attr('cx')) + 100, parseInt(dataset.attr('cy')));
+				_connect_node(f0, f1);
+
+
+				const f2 = _add_node_function('validate');
+				_move_node(f2, parseInt(f1.attr('cx')) + 100, parseInt(dataset.attr('cy')));
+				_connect_node(f1, f2);
+
 			});
 			
 			// bind for later access
