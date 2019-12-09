@@ -18,12 +18,6 @@
           background: linear-gradient(to bottom,rgba(255,255,255,1) 0%,rgba(245,245,245,1) 100%);
           border: rgb(229, 229, 229) 1px solid;
         }
-        #controls {
-          /* top: 10px; */
-          left: 200px;
-          width: 360px;
-          height: 45px;
-        }
         #data-box {
           top: 10px;
           left: 900px;
@@ -68,20 +62,22 @@
     </div>
     <div id="controls" class='nicebox'>
       <div>
-      <select id="heatmap-options">
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP02_0066PE">Median House Value</option>
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP05_0017E">Housing Median age</option>
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP05_0001E">Total population</option>
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP02_0016E">Average family size</option>
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP03_0088E">Median income</option>
-        <option value="https://storage.googleapis.com/mapsdevsite/json/DP03_0088E">Households</option>
+      <select id="heatmap-options" onchange="changeMap(this.value)">
+        <option value="" disabled selected style="display:none;"></option>
+        <option value="housing_median_age">Housing Median age</option>
+        <option value="median_income">Median Income</option>
+        <option value="median_house_value">Median House Value</option>
+        <option value="rooms_per_household">Rooms Per Household</option>
+        <option value="bedrooms_per_household">Bedrooms Per Household</option>
+        <option value="bedrooms_per_room">Bedrooms Per Room</option>
+        <option value="population_per_household">Population Per Household</option>
       </select>
       </div>
-      <div id="legend">
+      <!-- <div id="legend">
         <div id="census-min">min</div>
         <div class="color-key"><span id="data-caret">&#x25c6;</span></div>
         <div id="census-max">max</div>
-      </div>
+      </div> -->
     </div>
     <!-- <div id="data-box" class="nicebox">
       <label id="data-label" for="data-value"></label>
@@ -101,126 +97,365 @@
         'elementType': 'geometry',
         'stylers': [{'visibility': 'on'}, {'color': '#bfd4ff'}]
       }];
-      var map, heatmap;
+      var map, heatmap, weightIdx, geocoder, service, poly, infowindow;
       var delayFactor = 0;
+      // map options to heatmap points with diff weight 
+      var heatmapPtsMap = {};
+      var weightOptions = ['housing_median_age', 'median_income', 'median_house_value', 'rooms_per_household', 'bedrooms_per_household', 'bedrooms_per_room', 'population_per_household'];
+      const dataPoints = processData(data);
       // var stuff = $('vis').data('map')
       // var data = document.getElementById('vis').getAttribute('data-map');
       // console.log(JSON.parse(stuff))
       function initMap() {
-        console.log("109")
+        console.log("111")
         console.log(processData(data))
-        const dataPoints = processData(data);
+        geocoder = new google.maps.Geocoder();
+        service = new google.maps.DirectionsService();
+        infowindow = new google.maps.InfoWindow();
+        const colorMap = getRandomColors(dataPoints.length);
         // load the map
         map = new google.maps.Map(document.getElementById('map'), {
-          center: {lat: 37.8, lng: -122.2},
-          zoom: 10,
+          center: {lat: 38.8, lng: -122.2},
+          zoom: 8,
           styles: mapStyle
         });
-        const colorMap = getRandomColors(data.length);
-        var heatmapPoints = [];
+        poly = new google.maps.Polyline({ map: map, strokeOpacity: 1.0, strokeWeight: 3});
         var markers = [];
-        var infowindow = new google.maps.InfoWindow();
-        //Initialize the Direction Service
-        // var service = new google.maps.DirectionsService();
-        //Set the Path Stroke Color
         for (var i = 0; i < dataPoints.length; i++){ 
           // i is group num
           const color = colorMap[i];
           const weight = dataPoints[i].length;
           for (var j = 0; j < dataPoints[i].length; j++){
             var point = dataPoints[i][j];
-            const heatmapPoint = {
-              location: new google.maps.LatLng(point.latitude, point.longitude),
-              weight: weight
+            for (var n = 0; n < weightOptions.length; n++){
+              var heatmapPoint = {
+                location: new google.maps.LatLng(point.latitude, point.longitude),
+                weight: point[weightOptions[n]] * weight
+              }
+              if(weightOptions[n] in heatmapPtsMap){
+                heatmapPtsMap[weightOptions[n]].push(heatmapPoint);
+              } else {
+                heatmapPtsMap[weightOptions[n]] = [heatmapPoint];
+              }
             }
-            heatmapPoints.push(heatmapPoint);
             var marker = new google.maps.Marker({
               map: map,
               animation: google.maps.Animation.DROP,
               position: {lat: point.latitude, lng: point.longitude},
               data: point,
               icon: pinSymbol(color),
+              color: color
             });
-            markers.push(marker);
-            var geocoder = new google.maps.Geocoder();
-
-            function getCityLocation(point, city_name) {
-                geocoder.geocode({ 'address': city_name + ', CA'}, function (results, status) {
-                if (status == google.maps.GeocoderStatus.OK) {
-                  var city = results[0].geometry.location;
-                  var current = heatmapPoint.location;
-                  //Initialize the Path Array
-                  var request = {
-                      origin: current,
-                      destination: city,
-                      travelMode: google.maps.DirectionsTravelMode.DRIVING
-                  };
-                  var path = new google.maps.MVCArray();
-                  function m_get_directions_route(request) {
-                    new google.maps.DirectionsService().route(request, function (result, status) {
-                      if (status == google.maps.DirectionsStatus.OK) {
-                          for (var i = 0, len = result.routes[0].overview_path.length; i < len; i++) {
-                              path.push(result.routes[0].overview_path[i]);
-                          }
-                      } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
-                          delayFactor++;
-                          setTimeout(function () {
-                              m_get_directions_route(request);
-                          }, delayFactor * 1000);
-                      } else {
-                          console.log("Route: " + status);
-                      }
-                    });
-                  }
-                  var poly = new google.maps.Polyline({ map: map, strokeColor: color, strokeOpacity: 1.0, strokeWeight: 3});
-                  m_get_directions_route(request);
-                  poly.setPath(path);
-                } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
-                  delayFactor++;
-                  setTimeout(function () {
-                      getCityLocation(point, city_name);
-                  }, delayFactor * 1000);
-                }
-                });
-              }
-            if(point.big_city_name !== undefined){
-              getCityLocation(point, point.big_city_name);
-            } 
-            // else if(point.close_city_name !== undefined){
-            //   getCityLocation(point, point.close_city_name);
-            // }
-            bindInfoWindow(marker, map, infowindow, formatHoverData(point));
+            markers.push(marker);          
+            bindInfoWindow(marker, point);
           }
         }
         heatmap = new google.maps.visualization.HeatmapLayer({
-          data: heatmapPoints,
           map: map
         });
         // add marker clustering
         var markerCluster = new MarkerClusterer(map, markers,
-            {imagePath: '../image/m', maxZoom: 15});
+            {imagePath: '../image/m', maxZoom: 12});
+
+        var drawingManager = new google.maps.drawing.DrawingManager({
+          drawingMode: null,
+          drawingControl: true,
+          drawingControlOptions: {
+              position: google.maps.ControlPosition.TOP_CENTER,
+              drawingModes: [
+              // google.maps.drawing.OverlayType.CIRCLE,
+              google.maps.drawing.OverlayType.POLYGON,
+              // google.maps.drawing.OverlayType.RECTANGLE
+              ]
+          },
+       
+          circleOptions: {
+              fillOpacity: 0.35,
+              strokeWeight: 5,
+              clickable: false,
+              editable: true,
+              draggable: true,
+              zIndex: 1
+          },
+          polygonOptions: {
+            strokeColor: '#FF0000',
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: '#FF0000',
+            fillOpacity: 0.35,
+            editable: true,
+            draggable: true
+          },
+          rectangleOptions: {
+            editable: true,
+            draggable: true
+          }
+
+        });
+        drawingManager.setMap(map);
+        var customControlDiv = document.createElement('div');
+        var customControl = new CustomControl(customControlDiv, map);
+        customControlDiv.index = 1;
+        map.controls[google.maps.ControlPosition.TOP_CENTER].push(customControlDiv);
+        var all_overlays = [];
+        google.maps.event.addListener(drawingManager, 'overlaycomplete', function(e) {
+          all_overlays.push(e);
+          // Switch back to non-drawing mode after drawing a shape.
+          drawingManager.setDrawingMode(null);
+          // Add an event listener that selects the newly-drawn shape when the user
+          // mouses down on it.
+          var newShape = e.overlay;
+          newShape.type = e.type;
+          google.maps.event.addListener(newShape, 'click', displayRegionalData);  
+          // Add an event listener on the polygon.
+          newShape.getPaths().forEach(function(path, index){
+            path.addListener('insert_at', function() {
+              infowindow.close();
+            }); 
+            path.addListener('set_at', function() {
+              infowindow.close();
+            }); 
+            path.addListener('remove_at', function() {
+              infowindow.close();
+            }); 
+          }); 
+          newShape.addListener('drag', function(){
+            infowindow.close();
+          });
+          newShape.addListener('dragend', function(){
+            infowindow.close();
+          });
+
+        });
       }
 
-      function bindInfoWindow(marker, map, infowindow, data) {
+
+      function CustomControl(controlDiv, map) {
+
+        // Set CSS for the control border
+        var controlUI = document.createElement('div');
+        controlUI.style.backgroundColor = '#ffff99';
+        controlUI.style.borderStyle = 'solid';
+        controlUI.style.borderWidth = '1px';
+        controlUI.style.borderColor = '#ccc';
+        controlUI.style.marginTop = '2px';
+        controlUI.style.marginLeft = '-6px';
+        controlUI.style.cursor = 'pointer';
+        controlUI.style.textAlign = 'center';
+        controlDiv.appendChild(controlUI);
+
+        // Set CSS for the control interior
+        var controlText = document.createElement('div');
+        controlText.style.fontFamily = 'Arial,sans-serif';
+        controlText.style.fontSize = '9px';
+        controlText.style.paddingLeft = '4px';
+        controlText.style.paddingRight = '4px';
+        controlText.style.paddingTop = '7px';
+        controlText.style.paddingBottom = '7px';
+        controlText.innerHTML = 'Draw Shapes';
+        controlUI.appendChild(controlText);
+
+        // Setup the click event listeners
+        // google.maps.event.addDomListener(controlUI, 'click', function () {
+        //     alert('Custom control clicked');
+        // });
+      }
+
+      function clearSelection() {
+        if (selectedShape) {
+          selectedShape.setEditable(false);
+          selectedShape = null;
+        }
+      }
+
+      function setSelection(shape) {
+          clearSelection();
+          selectedShape = shape;
+          shape.setEditable(true);
+      }
+
+      function displayRegionalData(event) {
+        var bounds = new google.maps.LatLngBounds();
+        var paths = this.getPaths();
+        paths.forEach(function(path, index){
+          path.forEach(function(point) {
+            bounds.extend(point);
+          });
+        });
+        var ne = bounds.getNorthEast();
+        var sw = bounds.getSouthWest();
+        var contentString = formatHoverData(dataInRegion(this));
+        // Set the info window's content and position.
+        infowindow.setContent(contentString);
+        infowindow.setPosition(new google.maps.LatLng(ne.lat(), ne.lng()));
+        infowindow.open(map);
+      }
+
+      function dataInRegion(region) {
+        var result = {};
+        var statistics = {};
+        for (var i = 0; i < dataPoints.length; i++){
+          // in each group
+          for (var j = 0; j < dataPoints[i].length; j++){
+            var point = dataPoints[i][j];
+            if (i === 0 && j=== 0){
+              for (attr in point){
+                result[attr] = [];
+              }
+            }
+            var coord = new google.maps.LatLng(point.latitude, point.longitude);
+            if (google.maps.geometry.poly.containsLocation(coord, region)) {
+              for (key in point) {
+                if (key !== 'latitude' && key !== 'longitude' && key !== 'ocean_proximity' && key !== 'close_city_name' && key !== 'close_city_dist' && key !== 'big_city_name' && key !== 'big_city_dist') {
+                  result[key].push(point[key]);
+                }
+              }
+            }
+          }
+        }
+        for (key in result) {
+          if (key !== 'latitude' && key !== 'longitude' && key !== 'ocean_proximity' && key !== 'close_city_name' && key !== 'close_city_dist' && key !== 'big_city_name' && key !== 'big_city_dist') {
+            var values = result[key];
+            statistics[key] = {
+              min: Math.min.apply(null, values),
+              max: Math.max.apply(null, values),
+              range: Math.max.apply(null, values) - Math.min.apply(null, values),
+              sum: sum(values),
+              mean: mean(values),
+              median: median(values),
+              modes: modes(values),
+              variance: variance(values),
+              standard_deviation: Math.sqrt(variance(values))
+            }
+          }
+        }
+        return statistics;
+      }
+
+      function mean(array) {
+        return sum(array) / array.length;
+      }
+
+      function sum(array) {
+        var num = 0;
+        for (var i = 0, l = array.length; i < l; i++) num += array[i];
+        return num;
+      }
+
+      function median(array) {
+        array.sort(function(a, b) {
+          return a - b;
+        });
+        var mid = array.length / 2;
+        return mid % 1 ? array[mid - 0.5] : (array[mid - 1] + array[mid]) / 2;
+      }
+
+      function modes(array) {
+        if (!array.length) return [];
+        var modeMap = {},
+          maxCount = 0,
+          modes = [];
+
+        array.forEach(function(val) {
+          if (!modeMap[val]) modeMap[val] = 1;
+          else modeMap[val]++;
+
+          if (modeMap[val] > maxCount) {
+            modes = [val];
+            maxCount = modeMap[val];
+          }
+          else if (modeMap[val] === maxCount) {
+            modes.push(val);
+            maxCount = modeMap[val];
+          }
+        });
+        return modes;
+      }
+
+      function variance(array) {
+        var m = mean(array);
+        return mean(array.map(function(num) {
+          return Math.pow(num - m, 2);
+        }));
+      }
+
+      function getCityLocation(point, city_name) {
+        geocoder.geocode({ 'address': city_name + ', CA, US'}, function (results, status) {
+        if (status == google.maps.GeocoderStatus.OK) {
+          var city = results[0].geometry.location;
+          var current = new google.maps.LatLng(point.latitude, point.longitude);
+          var request = {
+              origin: current,
+              destination: city,
+              travelMode: google.maps.DirectionsTravelMode.DRIVING
+          };
+          //Initialize the Path Array
+          var path = new google.maps.MVCArray();
+          function m_get_directions_route(request) {
+            service.route(request, function (result, status) {
+              if (status == google.maps.DirectionsStatus.OK) {
+                  for (var i = 0, len = result.routes[0].overview_path.length; i < len; i++) {
+                      path.push(result.routes[0].overview_path[i]);
+                  }
+              } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
+                  delayFactor++;
+                  setTimeout(function () {
+                      m_get_directions_route(request);
+                  }, delayFactor * 1000);
+              } else {
+                  console.log("Route: " + status);
+              }
+            });
+          }
+          m_get_directions_route(request);
+          poly.setOptions({strokeOpacity : 1.0});
+          poly.setPath(path);
+        } else if (status === google.maps.DirectionsStatus.OVER_QUERY_LIMIT) {
+          delayFactor++;
+          setTimeout(function () {
+              getCityLocation(point, city_name);
+          }, delayFactor * 1000);
+        }
+        });
+      }
+
+      function bindInfoWindow(marker, point) {
+          var data = formatHoverData(point);
           marker.addListener('click', function() {
             infowindow.setContent(data);
             infowindow.open(map, this);
+            // getCityLocation(point, point.big_city_name);
           });
           marker.addListener('mouseover', function() {
             infowindow.setContent(data)
             infowindow.open(map, this);
+            poly.setOptions({strokeColor: marker.color});
+            getCityLocation(point, point.big_city_name);
           });
 
           marker.addListener('mouseout', function() {
             infowindow.close();
+            poly.setOptions({strokeOpacity : 0});
           }); 
       } 
 
       function formatHoverData(data) {
         var results = [];
         Object.keys(data).forEach(function(key) {
-          const text = '<b>' + key + '</b>' + ': ' + data[key];
-          results.push(text);
+          if (data[key] === Object(data[key])){ 
+            // if there is another level
+            var text = '<h5>' + key + ': ' + '</h5>';
+            Object.keys(data[key]).forEach(function(attr, idx) {
+              if (idx !== 0) {
+                text += '<br>';
+              }
+              text +=  '<b>' + attr + '</b>' + ': '  + data[key][attr];
+            });
+            results.push(text);
+          } else {
+            const text = '<b>' + key + '</b>' + ': ' + data[key];
+            results.push(text);
+          }
         });
         return '<p>' + results.join('<br />') + '</p>';
       }
@@ -306,6 +541,9 @@
         map.setOptions({styles: mapStyle});
       }
 
+      function changeMap(weight) {
+        heatmap.setData(heatmapPtsMap[weight]);
+      }
 
       function processData(data) {
         var resData = [];
@@ -328,7 +566,7 @@
             for (var m=0; m < pts.length; m++){
               const point = pts[m];
               for (key in point){
-                if (key !== 'longitude' && key !== 'latitude' && key !== 'longitude' && key !== 'ocean_proximity' && key !== 'close_city_name' && key !== 'close_city_dist' && key !== 'big_city_name' && key !== 'big_city_dist'){
+                if (key !== 'latitude' && key !== 'longitude' && key !== 'ocean_proximity' && key !== 'close_city_name' && key !== 'close_city_dist' && key !== 'big_city_name' && key !== 'big_city_dist'){
                   if (key in ptMap){
                     ptMap[key].push(point[key]);
                   } else {
@@ -354,7 +592,7 @@
    
     </script>
     <script async defer
-        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADNEjDW1J_ZZuVS7lpK4YiBtrUHNj4Duk&callback=initMap&libraries=visualization,geometry">
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyADNEjDW1J_ZZuVS7lpK4YiBtrUHNj4Duk&callback=initMap&libraries=visualization,geometry,drawing">
     </script>
   </body>
 </html>
