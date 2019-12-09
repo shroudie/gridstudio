@@ -518,7 +518,8 @@
 				<div>
 					<label>Range #ofClusters</label></br>
 					<input style="width:100px" name="sup" type="number" value=2 step=1 min="2" /></br>
-					<input style="width:100px" name="sup" type="number" value=5 step=1 min="2" />
+					<input style="width:100px" name="sup" type="number" value=5 step=1 min="2" /></br>
+					<button>Visualize</button>
 				</div>
 			`,
 			apriori: `
@@ -540,7 +541,11 @@
 					<h3>Cluster Apriori</h3>
 				</div>
 				<div>
-					<label>Columns</label> 
+					<fieldset>
+					<legend>Columns to be Processed</legend>
+					<ul class="checkbox">
+					</ul>
+					</fieldset>
 				</div>
 			`,
 			filter:`
@@ -562,6 +567,29 @@
 				</div>
 			`
 			
+		}
+
+		function _get_node_columns(_id) {
+			var columns = [];
+			let sid = _id.toString();
+			let max_iter = Object.keys(_this.graph).length;
+			while (max_iter > 0) {
+				max_iter -= 1;
+				for (const [nid, node] of Object.entries(_this.graph)) {
+					if (node.n.has(sid)) {
+						if (node.t == 'i' && node.d !== undefined) {
+							for (var i=0; i<node.d[0].length; ++i) {
+								columns.push(node.d[0][i]);
+							}
+							return columns;
+						} else {
+							sid = nid.toString();
+						}
+						break;
+					}
+				}
+			}
+			return columns;
 		}
 
 		function _add_node_function(func) {
@@ -628,17 +656,12 @@
 						var filter_args = _this.graph[_id].d.karg.arg[0];
 
 						$('#code-editor-div').html(node_func_tplt[func].format(filter_args.v[0], filter_args.v[1])); 
-						for (const [k, node] of Object.entries(_this.graph)) {
-							if (node.n.has(_id.toString())) {
-								if (node.d !== undefined) {
-									for (var i=0; i<node.d[0].length; ++i) {
-										$('#code-editor-div select').append(new Option(node.d[0][i], node.d[0][i]));
-									}
-								}
-								$('#code-editor-div select').val(filter_args.k);
-								break;
-							}
-						}
+						const cols = _get_node_columns(_id);
+						cols.forEach(e => {
+							$('#code-editor-div select').append(new Option(e, e));
+						})
+						$('#code-editor-div select').val(filter_args.k);
+
 						$('#code-editor-div select').on('change', function() {
 							filter_args.k = this.value;
 						});
@@ -677,10 +700,36 @@
 						})
 					} else if (func === 'kmeans') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
+						$('#code-editor-div button').on('click', () => {
+							if (ref.cache) {
+								console.log(ref.cache);
+							}
+						})
 					} else if (func === 'validate') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
 					} else if (func === 'capriori') {
 						$('#code-editor-div').html(node_func_tplt[func]); 
+						const cols = _get_node_columns(_id);
+						cols.forEach(e => {
+							$('#code-editor-div ul').append('\
+								<li>\
+								<input type="checkbox" value="{0}" {1}/>\
+								<label>{0}</label>\
+								</li>\
+							'.format(e, ref.d.karg.cols.indexOf(e)>-1?"checked":""));
+						});
+						$('#code-editor-div input').on('change', function() {
+							const e = this.value;
+							if (this.checked) {
+								if (ref.d.karg.cols.indexOf(e) < 0)
+									ref.d.karg.cols.push(e);
+							} else {
+								var index = ref.d.karg.cols.indexOf(e);
+								if (index > -1) {
+									ref.d.karg.cols.splice(index, 1);
+								}
+							}
+						});
 					}
 				},
 				contextmenu: () => {
@@ -3143,6 +3192,15 @@
 				_move_node(f2, parseInt(f1.attr('cx')) + 100, parseInt(dataset.attr('cy')));
 				_connect_node(f1, f2);
 
+			});
+			menu.find('menu-item.demo5').click(() => {
+				_clear_d3_group();
+
+				const dataset = _add_node_dataset('housing_v5');
+				
+				const f0 = _add_node_function('capriori');
+				_move_node(f0, parseInt(dataset.attr('cx')) + 100, parseInt(dataset.attr('cy')));
+				_connect_node(dataset, f0);
 			});
 			
 			// bind for later access
