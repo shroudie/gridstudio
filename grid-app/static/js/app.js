@@ -640,14 +640,24 @@
 						$('#code-editor-div button#vis').on('click', () => {
 							if (ref.cache !== null) {
 								let group_data = [];
-								for (let i=0; i<ref.cache.data.length; ++i) {
-									group_data.push({data: ref.cache.data[i]});
+								const ap_ouput = ref.cache.data;
+								for (let i=0; i<ap_ouput.data.length; ++i) {
+									group_data.push({data: ap_ouput.data[i]});
+								}
+								console.log(ap_ouput);
+								console.log(ap_ouput.apri);
+								for (key in ap_ouput.apri) {
+									console.log(key);
+									console.log(ap_ouput.apri[key]);
 								}
 								var map_data = {
 									cols: _this.data[0][0],
 									grps: group_data
 								};
+								console.log(map_data)
 								data = processData(map_data);
+								type = 'apriori';
+								apri_grps = ap_ouput.apri;
 								$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 							}
 						})
@@ -688,7 +698,7 @@
 									data: ref.cache.data.slice(1),
 								}]
 							};
-							data = processData(map_data)
+							data = processData(map_data);
 							$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 						})
 					} else if (func === 'kmeans') {
@@ -736,7 +746,6 @@
 								}
 								if (kIdx > -1) {
 									data = formattedData[kIdx];
-									console.log(data)
 									type = 'cluster';
 									$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 								}
