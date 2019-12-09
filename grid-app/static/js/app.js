@@ -520,11 +520,18 @@
 				<div>
 					<h3>Kmeans</h3>
 				</div>
-				<div>
-					<label>Range #ofClusters</label></br>
-					<input style="width:100px" name="sup" type="number" value=2 step=1 min="2" /></br>
-					<input style="width:100px" name="sup" type="number" value=5 step=1 min="2" /></br>
+				<div id='kmeans-controls'>
+					<label>Range: # of Clusters</label></br>
+					<input id='kmeans-min' style="width:100px" name="sup" type="number" value=2 step=1 min="2" /></br>
+					<input id='kmeans-max' style="width:100px" name="sup" type="number" value=5 step=1 min="2" /></br>
 					<button>Visualize</button>
+					<select id="k-options">
+						<option value="" disabled selected style="display:none;"></option>
+						<option value=2>Number of Clusters = 2</option>
+						<option value=3>Number of Clusters = 3</option>
+						<option value=4>Number of Clusters = 4</option>
+						<option value=5>Number of Clusters = 5</option>
+					</select>
 				</div>
 			`,
 			apriori: `
@@ -646,20 +653,25 @@
 						$('#code-editor-div button#vis').on('click', () => {
 							if (ref.cache !== null) {
 								let group_data = [];
-								const freq_table = ref.cache.data;
-								for (let i=0; i<ref.cache.data.length; ++i) {
-									group_data.push({data: freq_table.data[i]});
+								const ap_ouput = ref.cache.data;
+								for (let i=0; i<ap_ouput.data.length; ++i) {
+									group_data.push({data: ap_ouput.data[i]});
+								}
+								console.log(ap_ouput);
+								console.log(ap_ouput.apri);
+								for (key in ap_ouput.apri) {
+									console.log(key);
+									console.log(ap_ouput.apri[key]);
 								}
 								const freq_items = freq_table.apri;
 								var map_data = {
 									cols: _this.data[0][0],
 									grps: group_data
 								};
+								console.log(map_data)
 								data = processData(map_data);
-								var d = document.createAttribute('data-map');
-								d.value = data;
-								var button = document.getElementById('vis');
-								button.setAttributeNode(d);
+								type = 'apriori';
+								apri_grps = ap_ouput.apri;
 								$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 							}
 						})
@@ -700,21 +712,57 @@
 									data: ref.cache.data.slice(1),
 								}]
 							};
-							// console.log(map_data);
-							data = processData(map_data)
-							// console.log(data);
-							var d = document.createAttribute('data-map');
-							d.value = data;
-							var button = document.getElementById('vis');
-							button.setAttributeNode(d);
+							data = processData(map_data);
 							$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
 						})
 					} else if (func === 'kmeans') {
+						var min = 2;
+						var max = 5;
 						$('#code-editor-div').html(node_func_tplt[func]); 
+						$('[name="sup"]').change(function(){
+							if ($(this).attr('id') === 'kmeans-min') {
+								min = $(this).val();
+							} else if ($(this).attr('id') === 'kmeans-max') {
+								max = $(this).val();
+							}
+							var optionsText = '<option value="" disabled selected style="display:none;"></option>';
+							for (var i = min; i <= max; i++){ 
+								optionsText += `<option value=${i}>Number of Clusters = ${i}</option>`;
+							}
+							$('#k-options').html(optionsText);
+						});
 						$('#code-editor-div button').on('click', () => {
+							var inpt_data, inpt_cols;
 							if (ref.cache) {
-								const cols = _get_node_columns(_id);
-								const data = ref.cache.data.input;
+								for (const k in _this.graph) {
+									const node = _this.graph[k];
+									if (node.n.has(_id.toString())) {
+										if (node.t == 'i') {
+											inpt_cols = node.d[0];
+											inpt_data = node.d.subarray(1);
+										} else if (node.t == 'f') {
+											inpt_cols = node.cache.data[0];
+											inpt_data = node.cache.data.slice(1);
+										}
+										break;
+									}
+								}
+								var clusterNum = parseInt($('#k-options option:selected').val());
+								const map_data = ref.cache.data;
+								var res = processClusterData(inpt_cols, inpt_data, map_data);
+								var formattedData = res[0];					
+								var kValues = res[1];
+								var kIdx = -1;
+								for (var k = 0; k < kValues.length; k++) {
+									if (clusterNum === kValues[k]) {
+										kIdx = k;
+									}
+								}
+								if (kIdx > -1) {
+									data = formattedData[kIdx];
+									type = 'cluster';
+									$('#MyPopup').modal('show').find('.modal-body').load('map/index.html');
+								}
 							}
 						})
 					} else if (func === 'validate') {
@@ -761,6 +809,42 @@
 				}
 			});
 			return node;
+		}
+
+		function processClusterData(cols, input, d) {
+			var output = d.output;
+			var result = [];
+			var kValues = [];
+			for (var i = 0; i < output.length; i++) {
+				// clusters when k=i
+				var clustersData = output[i];
+				if (clustersData.length === 3) {
+					var centroids = clustersData[0];
+					var clusters = clustersData[1];
+					var distance = clustersData[2];
+					var values = [];
+					kValues.push(centroids.length);
+					for (var j = 0; j < clusters.length; j++) {
+						// in each cluster, map input index to data
+						var cluster = clusters[j];
+						var currCluster = [];
+						for (var k = 0; k < cluster.length; k++) {
+							var idx = cluster[k];
+							var value = input[idx];
+							var point = {};
+							for (var h = 0; h < value.length; h++) {
+								point[cols[h]] = value[h];
+								
+							}
+							point['centroid_distance'] = distance[idx];
+							currCluster.push(point);
+						}
+						values.push(currCluster);
+					}
+					result.push(values);
+				}
+			}
+			return [result, kValues];
 		}
 
 		function processData(d) {

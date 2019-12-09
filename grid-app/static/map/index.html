@@ -6,6 +6,9 @@
     <title>Map Data Visualization</title>
     <style>
       html, body, #map { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        select{
+          font-family: 'fontAwesome'
+        }
         .nicebox {
           position: relative;
           text-align: center;
@@ -50,6 +53,9 @@
         #data-label { font-size: 2.0em; font-weight: normal; padding-right: 10px; }
         #data-label:after { content: ':' }
         #data-caret { margin-left: -5px; display: none; font-size: 14px; width: 14px}
+        .fa option {
+         font-weight: 900;
+        }
     </style>
   </head>
   <body>
@@ -61,7 +67,7 @@
         <button onclick="changeOpacity()">Change Heatmap Opacity</button>
     </div>
     <div id="controls" class='nicebox'>
-      <div>
+      <div id='selects'>
       <select id="heatmap-options" onchange="changeMap(this.value)">
         <option value="" disabled selected style="display:none;"></option>
         <option value="housing_median_age">Housing Median age</option>
@@ -97,22 +103,70 @@
         'elementType': 'geometry',
         'stylers': [{'visibility': 'on'}, {'color': '#bfd4ff'}]
       }];
-      var map, heatmap, weightIdx, geocoder, service, poly, infowindow;
+      var map, heatmap, weightIdx, geocoder, service, poly, infowindow, dataPoints;
+      var clusterIdx = 'all';
+      var apriIdx = 'all';
       var delayFactor = 0;
       // map options to heatmap points with diff weight 
       var heatmapPtsMap = {};
       var weightOptions = ['housing_median_age', 'median_income', 'median_house_value', 'rooms_per_household', 'bedrooms_per_household', 'bedrooms_per_room', 'population_per_household'];
-      const dataPoints = processData(data);
-      // var stuff = $('vis').data('map')
-      // var data = document.getElementById('vis').getAttribute('data-map');
-      // console.log(JSON.parse(stuff))
+      dataPoints = processData(data);
+      const colorMap = getRandomColors(dataPoints.length);
+
       function initMap() {
-        console.log("111")
-        console.log(processData(data))
+        if(typeof type !== "undefined" && type === 'cluster') {
+          var select = document.getElementById('heatmap-options');
+          var option = document.createElement('option');
+          option.setAttribute('value', 'centroid_distance');
+          option.innerHTML = 'Cluster Distance';
+          select.appendChild(option);
+          weightOptions.push('centroid_distance');
+          var controls = document.getElementById('selects');
+          var selectK = document.createElement('select');
+          selectK.setAttribute('id', 'clusters-options');
+          selectK.setAttribute('onchange', 'changeClusterNum(this.value)');
+          selectK.setAttribute('class', 'fa');
+          var initOption = document.createElement('option');
+          initOption.setAttribute('value', 'all');
+          // initOption.setAttribute('disabled', '');
+          initOption.setAttribute('selected', '');
+          initOption.innerHTML = 'All clusters';
+          // initOption.setAttribute('style', 'display:none;');
+          selectK.appendChild(initOption);
+          for (var i = 0; i < dataPoints.length; i++) {
+            var kOption = document.createElement('option');
+            kOption.setAttribute('value', i);
+            kOption.innerHTML = `&#xf041; Cluster ${i+1} (${dataPoints[i].length})`;
+            kOption.setAttribute('style', `color:${colorMap[i]};`)
+            selectK.appendChild(kOption);
+          }
+          controls.appendChild(selectK);
+        } else if(typeof type !== "undefined" && type === 'apriori') {
+          if(typeof apri_grps !== "undefined") {
+            var controls = document.getElementById('selects');
+            var selectGrps = document.createElement('select');
+            selectGrps.setAttribute('id', 'apri-options');
+            selectGrps.setAttribute('onchange', 'changeApriGrp(this.value)');
+            selectGrps.setAttribute('class', 'fa');
+            var initOption = document.createElement('option');
+            initOption.setAttribute('value', 'all');
+            initOption.setAttribute('selected', '');
+            initOption.innerHTML = 'All apriori item sets';
+            selectGrps.appendChild(initOption);
+            for (var i = 0; i < dataPoints.length; i++) {
+              var grpOption = document.createElement('option');
+              grpOption.setAttribute('value', i);
+              var pair = Object.entries(apri_grps)[i];
+              grpOption.innerHTML = `&#xf041; ${pair[0]} (${pair[1]})`;
+              grpOption.setAttribute('style', `color:${colorMap[i]};`)
+              selectGrps.appendChild(grpOption);
+            }
+            controls.appendChild(selectGrps);
+          }
+        }
         geocoder = new google.maps.Geocoder();
         service = new google.maps.DirectionsService();
         infowindow = new google.maps.InfoWindow();
-        const colorMap = getRandomColors(dataPoints.length);
         // load the map
         map = new google.maps.Map(document.getElementById('map'), {
           center: {lat: 38.8, lng: -122.2},
@@ -130,12 +184,17 @@
             for (var n = 0; n < weightOptions.length; n++){
               var heatmapPoint = {
                 location: new google.maps.LatLng(point.latitude, point.longitude),
-                weight: point[weightOptions[n]] * weight
+                weight: point[weightOptions[n]]
               }
               if(weightOptions[n] in heatmapPtsMap){
-                heatmapPtsMap[weightOptions[n]].push(heatmapPoint);
+                if(j === 0) {
+                  heatmapPtsMap[weightOptions[n]].push([heatmapPoint]);
+                } else {
+                  heatmapPtsMap[weightOptions[n]][i].push(heatmapPoint);
+                }
               } else {
-                heatmapPtsMap[weightOptions[n]] = [heatmapPoint];
+                heatmapPtsMap[weightOptions[n]] = [];
+                heatmapPtsMap[weightOptions[n]].push([heatmapPoint]);
               }
             }
             var marker = new google.maps.Marker({
@@ -259,6 +318,25 @@
         // google.maps.event.addDomListener(controlUI, 'click', function () {
         //     alert('Custom control clicked');
         // });
+      }
+
+      function changeClusterNum(clusterNum) {
+        clusterIdx = clusterNum;
+        if(clusterNum === 'all') {
+          heatmap.setData(heatmapPtsMap[weightIdx].flat());
+        } else {
+          heatmap.setData(heatmapPtsMap[weightIdx][clusterNum]);
+        }
+      }
+
+
+      function changeApriGrp(apriNum) {
+        apriIdx = apriNum;
+        if(apriNum === 'all') {
+          heatmap.setData(heatmapPtsMap[weightIdx].flat());
+        } else {
+          heatmap.setData(heatmapPtsMap[weightIdx][apriNum]);
+        }
       }
 
       function clearSelection() {
@@ -542,7 +620,12 @@
       }
 
       function changeMap(weight) {
-        heatmap.setData(heatmapPtsMap[weight]);
+        weightIdx = weight;
+        if(clusterIdx === 'all') {
+          heatmap.setData(heatmapPtsMap[weight].flat());
+        } else {
+          heatmap.setData(heatmapPtsMap[weight][clusterIdx]);
+        }
       }
 
       function processData(data) {
