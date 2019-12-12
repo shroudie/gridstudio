@@ -663,7 +663,7 @@
 									console.log(key);
 									console.log(ap_ouput.apri[key]);
 								}
-								const freq_items = freq_table.apri;
+								// const freq_items = freq_table.apri;
 								var map_data = {
 									cols: _this.data[0][0],
 									grps: group_data
@@ -930,6 +930,7 @@
 						'</tr>';
 				}
 			}
+			$('#code-editor-div').css('overflow', 'auto');
 			$('#code-editor-div').html('<div><h3>' + title + '</h3></div><div overflow:auto;><table>' + content + '</table></div>');
 		}
 	

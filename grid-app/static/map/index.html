@@ -111,9 +111,11 @@
       var heatmapPtsMap = {};
       var weightOptions = ['housing_median_age', 'median_income', 'median_house_value', 'rooms_per_household', 'bedrooms_per_household', 'bedrooms_per_room', 'population_per_household'];
       dataPoints = processData(data);
-      const colorMap = getRandomColors(dataPoints.length);
+      var colorMap = getRandomColors(dataPoints.length);
 
       function initMap() {
+        dataPoints = processData(data);
+        colorMap = getRandomColors(dataPoints.length);
         if(typeof type !== "undefined" && type === 'cluster') {
           var select = document.getElementById('heatmap-options');
           var option = document.createElement('option');
